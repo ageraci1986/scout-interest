@@ -1,0 +1,42 @@
+{
+  "name": "scout-interest",
+  "version": "1.0.0",
+  "description": "Meta Audience Analysis Tool - Complete Application",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "test": "concurrently \"cd backend && npm test\" \"cd frontend && npm test\"",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "lint": "concurrently \"cd backend && npm run lint\" \"cd frontend && npm run lint\"",
+    "lint:fix": "concurrently \"cd backend && npm run lint:fix\" \"cd frontend && npm run lint:fix\"",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f",
+    "setup": "npm run install:all && npm run docker:up"
+  },
+  "keywords": [
+    "meta",
+    "facebook",
+    "ads",
+    "audience",
+    "analysis",
+    "react",
+    "nodejs",
+    "typescript"
+  ],
+  "author": "Scout Interest Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

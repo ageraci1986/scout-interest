@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: scout_interest_postgres
+    environment:
+      POSTGRES_DB: scout_interest_db
+      POSTGRES_USER: scout_user
+      POSTGRES_PASSWORD: scout_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - scout_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: scout_interest_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - scout_network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scout_interest_backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://scout_user:scout_password@postgres:5432/scout_interest_db
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - scout_network
+    command: npm run dev
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scout_interest_frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+      - REACT_APP_SOCKET_URL=http://localhost:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - scout_network
+    command: npm start
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  scout_network:
+    driver: bridge
