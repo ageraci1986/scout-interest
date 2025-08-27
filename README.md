@@ -1,191 +1,252 @@
-# Scout Interest - Meta Audience Analysis Tool
+# 🎯 Scout Interest - Analyse d'Audience Meta par Codes Postaux
 
-A comprehensive web application for analyzing Meta (Facebook Ads) audience size for postal code lists crossed with specific interest criteria. This tool optimizes advertising campaigns by providing precise geolocated audience data.
+Application web complète pour analyser la taille d'audience Meta (Facebook Ads) en croisant des codes postaux avec des critères d'intérêts spécifiques.
 
-## 🚀 Features
+## ✨ Fonctionnalités
 
-- **File Upload & Validation**: Support for Excel (.xlsx, .xls) and CSV files with automatic postal code validation
-- **Interest Targeting**: Meta interest search with autocomplete and real-time audience preview
-- **Batch Processing**: Optimized queue system with rate limiting and intelligent retry mechanisms
-- **Real-time Monitoring**: Live dashboard with progress tracking and detailed analytics
-- **Advanced Analytics**: Interactive data tables, heatmaps, and correlation graphs
-- **Export Capabilities**: Multiple export formats (Excel, CSV, JSON, PDF) with customizable templates
+### 📊 Analyse d'Audience
+- **Reach Estimate par Code Postal** : Calcul de la taille d'audience pour chaque code postal individuellement
+- **Reach Estimate avec Targeting** : Calcul avec critères d'intérêts, âge, genre, etc.
+- **Traitement en Temps Réel** : Progression en direct avec statistiques
+- **Export CSV/Excel** : Export des résultats avec encodage UTF-8 correct
 
-## 🏗️ Architecture
+### 📁 Gestion de Fichiers
+- **Upload Excel/CSV** : Support des formats .xlsx, .xls, .csv
+- **Détection Automatique** : Identification automatique des colonnes codes postaux
+- **Validation** : Vérification des données avant traitement
+- **Prévisualisation** : Aperçu des données avant analyse
 
-### Frontend
-- **React.js** with TypeScript
-- **Tailwind CSS** for modern UI
-- **Zustand** for state management
-- **React Dropzone** for file uploads
-- **React Table** for interactive data tables
-- **Recharts** for data visualization
-- **Socket.io Client** for real-time updates
+### 🎯 Targeting Avancé
+- **Recherche d'Intérêts** : Intégration avec l'API Meta Marketing
+- **Sélecteur de Pays** : Support multi-pays (US, FR, etc.)
+- **Paramètres Avancés** : Âge, genre, plateformes, etc.
+- **Estimation en Temps Réel** : Prévisualisation de l'audience
 
-### Backend
-- **Node.js** with Express.js
-- **PostgreSQL** for data persistence
-- **Redis** for caching and session management
-- **Bull/BullMQ** for job queue management
-- **Multer** for file processing
-- **Socket.io** for real-time communication
+## 🚀 Installation
 
-### APIs
-- **Meta Marketing API** (Graph API)
-- **OAuth 2.0** authentication
+### Prérequis
+- Node.js 16+ 
+- npm ou yarn
+- Compte Meta Business avec accès API Marketing
 
-## 📦 Installation
+### Configuration
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+
-- Redis 6+
-- Meta Developer Account
+1. **Cloner le repository**
+```bash
+git clone <repository-url>
+cd scout-Interest
+```
 
-### Setup
+2. **Configuration Backend**
+```bash
+cd backend
+npm install
+cp env.example .env
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd scout-Interest
-   ```
+3. **Configuration Frontend**
+```bash
+cd frontend
+npm install
+cp env.example .env
+```
 
-2. **Install dependencies**
-   ```bash
-   # Install backend dependencies
-   cd backend
-   npm install
-
-   # Install frontend dependencies
-   cd ../frontend
-   npm install
-   ```
-
-3. **Environment Configuration**
-   ```bash
-   # Backend
-   cp backend/.env.example backend/.env
-   
-   # Frontend
-   cp frontend/.env.example frontend/.env
-   ```
-
-4. **Database Setup**
-   ```bash
-   # Create database
-   createdb scout_interest_db
-   
-   # Run migrations
-   cd backend
-   npm run migrate
-   ```
-
-5. **Start Development Servers**
-   ```bash
-   # Backend (from backend directory)
-   npm run dev
-   
-   # Frontend (from frontend directory)
-   npm start
-   ```
-
-## 🔧 Configuration
-
-### Meta API Setup
-1. Create a Meta Developer account
-2. Create a Facebook App
-3. Configure OAuth 2.0 settings
-4. Add required permissions:
-   - `ads_management`
-   - `ads_read`
-   - `business_management`
-
-### Environment Variables
+4. **Variables d'environnement**
 
 **Backend (.env)**
 ```env
-# Server
-PORT=3001
-NODE_ENV=development
-
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/scout_interest_db
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Meta API
-META_APP_ID=your_meta_app_id
-META_APP_SECRET=your_meta_app_secret
 META_ACCESS_TOKEN=your_meta_access_token
-
-# JWT
-JWT_SECRET=your_jwt_secret
-
-# File Upload
-UPLOAD_PATH=./uploads
-MAX_FILE_SIZE=10485760
+META_AD_ACCOUNT_ID=act_your_ad_account_id
+DATABASE_URL=your_database_url
 ```
 
 **Frontend (.env)**
 ```env
-REACT_APP_API_URL=http://localhost:3001
-REACT_APP_SOCKET_URL=http://localhost:3001
+REACT_APP_API_BASE_URL=http://localhost:3001
+REACT_APP_META_AD_ACCOUNT_ID=act_your_ad_account_id
 ```
 
-## 📊 Usage
+## 🏃‍♂️ Démarrage
 
-1. **Upload Postal Codes**: Drag and drop Excel/CSV files containing postal codes
-2. **Configure Targeting**: Search and select Meta interests, set demographic parameters
-3. **Start Analysis**: Launch batch processing with real-time monitoring
-4. **Review Results**: Analyze audience data with interactive visualizations
-5. **Export Data**: Download results in your preferred format
-
-## 🧪 Testing
-
+### Développement
 ```bash
-# Backend tests
+# Terminal 1 - Backend
 cd backend
-npm test
+npm run dev
 
-# Frontend tests
+# Terminal 2 - Frontend  
 cd frontend
-npm test
-
-# E2E tests
-npm run test:e2e
+npm start
 ```
 
-## 📈 Performance
+### Production
+```bash
+# Build frontend
+cd frontend
+npm run build
 
-- **Rate Limiting**: Respects Meta API limits (200 calls/hour default)
-- **Caching**: Redis-based caching for frequent API responses
-- **Optimization**: Intelligent postal code grouping to reduce API calls
-- **Monitoring**: Real-time performance metrics and error tracking
+# Start backend
+cd backend
+npm start
+```
 
-## 🔒 Security
+## 📖 Utilisation
 
-- **OAuth 2.0**: Secure Meta API authentication
-- **JWT Tokens**: Encrypted session management
-- **Input Validation**: Comprehensive data sanitization
-- **Rate Limiting**: Protection against abuse
+### 1. Upload de Fichier
+- Allez sur `/upload`
+- Glissez-déposez votre fichier Excel/CSV
+- Vérifiez la prévisualisation des données
+- Cliquez sur "Continuer vers l'analyse"
 
-## 📝 License
+### 2. Configuration du Targeting
+- Sélectionnez des intérêts via la recherche Meta
+- Configurez les paramètres démographiques
+- Vérifiez l'estimation d'audience en temps réel
+- Validez la configuration
 
-MIT License - see LICENSE file for details
+### 3. Traitement et Résultats
+- Lancez le traitement des codes postaux
+- Suivez la progression en temps réel
+- Consultez les résultats dans le tableau
+- Exportez les données en CSV/Excel
 
-## 🤝 Contributing
+## 🏗️ Architecture
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+### Backend (Node.js/Express)
+```
+backend/
+├── src/
+│   ├── config/          # Configuration (Meta API, DB, Redis)
+│   ├── routes/          # Routes API (Meta, Upload)
+│   ├── services/        # Services métier
+│   ├── middleware/      # Middleware (upload, validation)
+│   └── workers/         # Workers pour traitement asynchrone
+├── test-*.js           # Tests d'intégration
+└── package.json
+```
 
-## 📞 Support
+### Frontend (React/TypeScript)
+```
+frontend/
+├── src/
+│   ├── components/      # Composants réutilisables
+│   ├── pages/          # Pages de l'application
+│   ├── services/       # Services API
+│   └── App.tsx         # Point d'entrée
+├── public/             # Assets statiques
+└── package.json
+```
 
-For support and questions, please open an issue on GitHub or contact the development team.
+## 🔧 API Meta Integration
+
+### Endpoints Utilisés
+- `GET /search` : Recherche d'intérêts et codes postaux
+- `GET /{ad_account_id}/reachestimate` : Calcul de reach estimate
+- `GET /{ad_account_id}/targetingsentencelines` : Suggestions de targeting
+
+### Format Targeting Spec
+```javascript
+{
+  geo_locations: {
+    zips: [{ key: "US:10001", name: "10001", country_code: "US" }]
+  },
+  age_min: 18,
+  age_max: 65,
+  genders: ["1", "2"],
+  device_platforms: ["mobile", "desktop"],
+  interests: [{ id: "6002714395372", name: "Technology" }]
+}
+```
+
+## 🧪 Tests
+
+### Tests Backend
+```bash
+cd backend
+node test-complete-workflow.js
+node test-meta-postal-codes.js
+node test-targeting-country-code.js
+```
+
+### Tests Frontend
+```bash
+cd frontend
+node test-complete-flow.js
+node test-meta-connection.js
+```
+
+## 📊 Format des Données
+
+### Fichier d'Entrée
+- **Format** : Excel (.xlsx, .xls) ou CSV
+- **Colonnes** : Au moins une colonne contenant des codes postaux
+- **Détection** : Automatique des colonnes "postal", "code", "zip", etc.
+
+### Fichier de Sortie
+```csv
+Code Postal,Pays,Audience Code Postal (min),Audience Code Postal (max),Audience avec Targeting (min),Audience avec Targeting (max),Statut,Erreur
+10001,US,27300,32200,15000,18000,completed,
+75001,FR,18500,22000,12000,15000,completed,
+```
+
+## 🔒 Sécurité
+
+- **Rate Limiting** : Protection contre les abus API
+- **Validation** : Vérification des données d'entrée
+- **Authentification** : Tokens Meta sécurisés
+- **CORS** : Configuration pour développement/production
+
+## 🚀 Déploiement
+
+### Heroku
+```bash
+# Backend
+heroku create scout-interest-backend
+git subtree push --prefix backend heroku main
+
+# Frontend
+heroku create scout-interest-frontend
+git subtree push --prefix frontend heroku main
+```
+
+### Docker
+```bash
+docker-compose up -d
+```
+
+## 📝 Documentation API
+
+### POST /api/upload/file
+Upload et traitement de fichier
+
+### POST /api/meta/reach-estimate
+Calcul de reach estimate
+
+### GET /api/meta/interests/search
+Recherche d'intérêts
+
+### POST /api/meta/postal-code-reach-estimate-v2
+Reach estimate par code postal
+
+## 🤝 Contribution
+
+1. Fork le projet
+2. Créez une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une Pull Request
+
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## 🆘 Support
+
+Pour toute question ou problème :
+- Ouvrez une issue sur GitHub
+- Consultez la documentation Meta Marketing API
+- Vérifiez les logs de l'application
 
 ---
 
-**Built with ❤️ for Meta advertising optimization**
+**Scout Interest** - Optimisez vos campagnes publicitaires avec des données d'audience précises par code postal ! 🎯
