@@ -42,6 +42,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Import routes
 const metaRoutes = require('./routes/meta');
 const uploadRoutes = require('./routes/upload');
+const projectRoutes = require('./routes/projects');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -61,6 +62,16 @@ app.get('/api/health', (req, res) => {
 // API routes
 app.use('/api/meta', metaRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/projects', projectRoutes);
+
+// Temporary redirect for direct project requests (workaround for proxy issues)
+app.use('/projects', projectRoutes);
+
+// Temporary redirect for direct meta requests (workaround for proxy issues)
+app.use('/meta', metaRoutes);
+
+// Temporary redirect for direct upload requests (workaround for proxy issues)
+app.use('/upload', uploadRoutes);
 
 // Mock API endpoints for testing
 app.post('/api/upload', (req, res) => {

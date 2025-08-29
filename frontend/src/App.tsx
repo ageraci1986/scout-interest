@@ -7,6 +7,8 @@ import UploadPage from './pages/UploadPage';
 import TargetingPage from './pages/TargetingPage';
 import AnalysisPage from './pages/AnalysisPage';
 import ResultsPage from './pages/ResultsPage';
+import ProjectsPage from './pages/ProjectsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
             <Route path="/targeting" element={<TargetingPage />} />
             <Route path="/analysis" element={<AnalysisPage />} />
             <Route path="/results" element={<ResultsPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Layout>
         <Toaster

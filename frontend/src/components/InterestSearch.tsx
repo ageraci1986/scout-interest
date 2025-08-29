@@ -55,7 +55,7 @@ const InterestSearch: React.FC<InterestSearchProps> = ({ onInterestSelect, selec
         setShowDropdown(true);
       } catch (error) {
         console.error('Error searching interests:', error);
-        toast.error('Erreur lors de la recherche d\'intérêts');
+        toast.error('Error searching interests');
         setResults([]);
       } finally {
         setIsLoading(false);
@@ -86,7 +86,7 @@ const InterestSearch: React.FC<InterestSearchProps> = ({ onInterestSelect, selec
     // Check if already selected
     const isAlreadySelected = selectedInterests.some(selected => selected.id === interest.id);
     if (isAlreadySelected) {
-      toast.error('Cet intérêt est déjà sélectionné');
+      toast.error('This interest is already selected');
       return;
     }
 
@@ -94,7 +94,7 @@ const InterestSearch: React.FC<InterestSearchProps> = ({ onInterestSelect, selec
     setQuery('');
     setResults([]);
     setShowDropdown(false);
-    toast.success(`${interest.name} ajouté`);
+    toast.success(`${interest.name} added`);
   };
 
   // Handle click outside dropdown
@@ -135,14 +135,14 @@ const InterestSearch: React.FC<InterestSearchProps> = ({ onInterestSelect, selec
     <div className="relative" ref={dropdownRef}>
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Rechercher des intérêts
+          Search Interests
         </label>
         <div className="relative">
           <input
             type="text"
             value={query}
             onChange={handleInputChange}
-            placeholder="Ex: fitness, cuisine, voyage..."
+            placeholder="Ex: fitness, cooking, travel..."
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
           {isLoading && (
@@ -183,7 +183,7 @@ const InterestSearch: React.FC<InterestSearchProps> = ({ onInterestSelect, selec
       {showDropdown && query && !isLoading && results.length === 0 && (
         <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
           <div className="px-4 py-3 text-gray-500">
-            Aucun intérêt trouvé pour "{query}"
+            No interests found for "{query}"
           </div>
         </div>
       )}

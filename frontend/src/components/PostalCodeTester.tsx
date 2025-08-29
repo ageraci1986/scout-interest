@@ -150,17 +150,18 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
               </div>
               
               <div className="border-t pt-3">
+                <h5 className="text-sm font-medium text-gray-800 mb-2">Estimation d'Audience</h5>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Taille d'audience (min):</span>
                   <span className="text-sm font-medium text-green-600">
-                    {formatNumber(result.reachEstimate.users_lower_bound || 0)} utilisateurs
+                    {formatNumber(result.reachEstimate?.users_lower_bound || 0)} utilisateurs
                   </span>
                 </div>
                 
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Taille d'audience (max):</span>
                   <span className="text-sm font-medium text-green-600">
-                    {formatNumber(result.reachEstimate.users_upper_bound || 0)} utilisateurs
+                    {formatNumber(result.reachEstimate?.users_upper_bound || 0)} utilisateurs
                   </span>
                 </div>
               </div>

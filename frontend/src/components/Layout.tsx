@@ -14,6 +14,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Targeting', href: '/targeting' },
     { name: 'Analyse', href: '/analysis' },
     { name: 'Résultats', href: '/results' },
+    { name: '📁 Mes Projets', href: '/projects' },
+    { name: '⚙️ Paramètres', href: '/settings' },
   ];
 
   return (

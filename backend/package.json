@@ -24,6 +24,7 @@
   "author": "Scout Interest Team",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.56.0",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "bottleneck": "^2.19.5",

@@ -78,7 +78,9 @@ router.post('/file', upload, async (req, res) => {
         statistics: processedData.statistics,
         preview: preview,
         postalCodeColumn: processedData.postalCodeColumn,
-        headers: processedData.headers
+        headers: processedData.headers,
+        // Add all processed postal codes for frontend processing
+        allPostalCodes: processedData.validPostalCodes.map(pc => pc.value)
       }
     });
 
@@ -128,7 +130,9 @@ router.post('/validate', upload, async (req, res) => {
         postalCodeColumn: processedData.postalCodeColumn,
         headers: processedData.headers,
         invalidPostalCodes: processedData.invalidPostalCodes.slice(0, 10), // First 10 errors
-        duplicates: processedData.duplicates.slice(0, 10) // First 10 duplicates
+        duplicates: processedData.duplicates.slice(0, 10), // First 10 duplicates
+        // Add all processed postal codes for frontend processing
+        allPostalCodes: processedData.validPostalCodes.map(pc => pc.value)
       }
     });
 
@@ -246,6 +250,151 @@ router.get('/status/:uploadId', async (req, res) => {
 
   } catch (error) {
     console.error('Status error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Store uploaded postal codes temporarily
+router.post('/store-postal-codes', async (req, res) => {
+  try {
+    const { postalCodes, sessionId } = req.body;
+    
+    if (!postalCodes || !Array.isArray(postalCodes) || postalCodes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'postalCodes array is required and must not be empty'
+      });
+    }
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'sessionId is required'
+      });
+    }
+
+    console.log(`📦 Storing ${postalCodes.length} postal codes for session ${sessionId}`);
+
+    // Store in memory (in production, you'd use Redis or database)
+    if (!global.tempPostalCodes) {
+      global.tempPostalCodes = new Map();
+    }
+
+    global.tempPostalCodes.set(sessionId, {
+      postalCodes,
+      timestamp: Date.now(),
+      count: postalCodes.length
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sessionId,
+        storedCount: postalCodes.length,
+        message: 'Postal codes stored successfully'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error storing postal codes:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Retrieve stored postal codes
+router.get('/get-postal-codes/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'sessionId is required'
+      });
+    }
+
+    console.log(`📦 Retrieving postal codes for session ${sessionId}`);
+
+    if (!global.tempPostalCodes || !global.tempPostalCodes.has(sessionId)) {
+      return res.status(404).json({
+        success: false,
+        message: 'No postal codes found for this session'
+      });
+    }
+
+    const storedData = global.tempPostalCodes.get(sessionId);
+    
+    // Check if data is not too old (24 hours)
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    if (Date.now() - storedData.timestamp > maxAge) {
+      global.tempPostalCodes.delete(sessionId);
+      return res.status(410).json({
+        success: false,
+        message: 'Stored postal codes have expired'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        postalCodes: storedData.postalCodes,
+        count: storedData.count,
+        timestamp: storedData.timestamp
+      }
+    });
+
+  } catch (error) {
+    console.error('Error retrieving postal codes:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Clean up old stored postal codes
+router.post('/cleanup-postal-codes', async (req, res) => {
+  try {
+    if (!global.tempPostalCodes) {
+      return res.json({
+        success: true,
+        data: {
+          cleanedCount: 0,
+          message: 'No stored postal codes to clean up'
+        }
+      });
+    }
+
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [sessionId, data] of global.tempPostalCodes.entries()) {
+      if (now - data.timestamp > maxAge) {
+        global.tempPostalCodes.delete(sessionId);
+        cleanedCount++;
+      }
+    }
+
+    console.log(`🧹 Cleaned up ${cleanedCount} expired postal code sessions`);
+
+    res.json({
+      success: true,
+      data: {
+        cleanedCount,
+        remainingSessions: global.tempPostalCodes.size,
+        message: 'Cleanup completed successfully'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error cleaning up postal codes:', error);
     res.status(500).json({
       success: false,
       message: error.message

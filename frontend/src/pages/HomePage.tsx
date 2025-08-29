@@ -7,23 +7,26 @@ const HomePage: React.FC = () => {
       {/* Hero Section */}
       <div className="text-center py-12">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Analysez votre audience Meta avec précision
+          Analyze your Meta audience with precision
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-          Scout Interest vous permet d'analyser la taille d'audience Meta pour vos codes postaux 
-          croisés avec des critères d'intérêt spécifiques. Optimisez vos campagnes publicitaires 
-          avec des données géolocalisées précises.
+          Scout Interest allows you to analyze Meta audience size for your postal codes 
+          crossed with specific interest criteria. Optimize your advertising campaigns 
+          with precise geolocated data.
         </p>
         <div className="flex justify-center space-x-4">
           <Link
             to="/upload"
             className="btn-primary text-lg px-8 py-3"
           >
-            Commencer l'analyse
+            Start Analysis
           </Link>
-          <button className="btn-secondary text-lg px-8 py-3">
-            Voir la démo
-          </button>
+          <Link
+            to="/projects"
+            className="btn-secondary text-lg px-8 py-3"
+          >
+            Mes Projets
+          </Link>
         </div>
       </div>
 
@@ -36,10 +39,10 @@ const HomePage: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Upload de fichiers
+            File Upload
           </h3>
           <p className="text-gray-600">
-            Importez vos listes de codes postaux depuis Excel ou CSV avec validation automatique.
+            Import your postal code lists from Excel or CSV with automatic validation.
           </p>
         </div>
 
@@ -50,10 +53,10 @@ const HomePage: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Analyse en temps réel
+            Real-time Analysis
           </h3>
           <p className="text-gray-600">
-            Suivez le progrès de votre analyse avec des graphiques et métriques en temps réel.
+            Track your analysis progress with real-time charts and metrics.
           </p>
         </div>
 
@@ -64,10 +67,10 @@ const HomePage: React.FC = () => {
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Export complet
+            Complete Export
           </h3>
           <p className="text-gray-600">
-            Exportez vos résultats en Excel, CSV, JSON ou PDF avec des visualisations avancées.
+            Export your results in Excel, CSV, JSON or PDF with advanced visualizations.
           </p>
         </div>
       </div>
@@ -75,20 +78,20 @@ const HomePage: React.FC = () => {
       {/* Stats Section */}
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-          Statistiques de performance
+          Performance Statistics
         </h2>
         <div className="grid md:grid-cols-4 gap-6">
           <div className="text-center">
             <div className="text-3xl font-bold text-primary-600">200+</div>
-            <div className="text-sm text-gray-600">Appels API/heure</div>
+            <div className="text-sm text-gray-600">API calls/hour</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-success-600">99.9%</div>
-            <div className="text-sm text-gray-600">Taux de succès</div>
+            <div className="text-sm text-gray-600">Success rate</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-warning-600">&lt;2s</div>
-            <div className="text-sm text-gray-600">Temps de réponse</div>
+            <div className="text-sm text-gray-600">Response time</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-error-600">24/7</div>
@@ -100,16 +103,16 @@ const HomePage: React.FC = () => {
       {/* CTA Section */}
       <div className="card bg-gradient-to-r from-primary-600 to-primary-700 text-white text-center">
         <h2 className="text-2xl font-bold mb-4">
-          Prêt à optimiser vos campagnes Meta ?
+          Ready to optimize your Meta campaigns?
         </h2>
         <p className="text-primary-100 mb-6">
-          Rejoignez des centaines d'annonceurs qui utilisent Scout Interest pour maximiser leur ROI.
+          Join hundreds of advertisers who use Scout Interest to maximize their ROI.
         </p>
         <Link
           to="/upload"
           className="bg-white text-primary-600 hover:bg-gray-100 font-medium py-3 px-8 rounded-lg transition-colors duration-200"
         >
-          Commencer maintenant
+          Start Now
         </Link>
       </div>
     </div>

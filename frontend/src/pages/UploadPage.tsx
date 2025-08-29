@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
 import uploadService, { UploadResponse, ValidationResponse } from '../services/uploadService';
+import projectService from '../services/projectService';
 import toast from 'react-hot-toast';
+import UploadTester from '../components/UploadTester';
 
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,7 +37,12 @@ const UploadPage: React.FC = () => {
 
     setIsUploading(true);
     try {
+      console.log('📤 Starting file upload...');
+      console.log('📁 File:', uploadedFiles[0].name, 'Size:', uploadedFiles[0].size);
+      
       const result = await uploadService.uploadFile(uploadedFiles[0]);
+      console.log('✅ Upload successful:', result);
+      
       setUploadResult(result);
       
       // Save postal codes to localStorage for the results page
@@ -43,63 +50,154 @@ const UploadPage: React.FC = () => {
         console.log('📋 Upload result data:', result.data);
         console.log('📋 Headers:', result.data.headers);
         console.log('📋 Preview rows:', result.data.preview?.rows);
+        console.log('📋 All postal codes from backend:', result.data.allPostalCodes?.length || 0);
         
-        // Find the postal code column more robustly
-        const postalCodeColumnIndex = result.data.headers.findIndex((header: string) => {
-          const lowerHeader = header.toLowerCase();
-          return lowerHeader.includes('postal') || 
-                 lowerHeader.includes('code') || 
-                 lowerHeader.includes('zip') ||
-                 lowerHeader.includes('cp') ||
-                 lowerHeader.includes('postcode');
-        });
-        
-        console.log('🔍 Postal code column index:', postalCodeColumnIndex);
-        console.log('🔍 Postal code column name:', postalCodeColumnIndex >= 0 ? result.data.headers[postalCodeColumnIndex] : 'Not found');
-        
+        // Use allPostalCodes from backend if available, otherwise fallback to preview extraction
         let postalCodes: string[] = [];
         
-        if (postalCodeColumnIndex >= 0 && result.data.preview?.rows) {
-          postalCodes = result.data.preview.rows
-            .map((row: any) => {
-              const code = row.data[postalCodeColumnIndex];
-              return code && code.toString().trim() !== '' ? code.toString().trim() : null;
-            })
-            .filter((code: string | null) => code !== null);
+        if (result.data.allPostalCodes && Array.isArray(result.data.allPostalCodes)) {
+          // Use the complete list from backend
+          postalCodes = result.data.allPostalCodes;
+          console.log('✅ Using all postal codes from backend:', postalCodes.length, 'codes');
         } else {
-          // Fallback: try to extract from any column that looks like postal codes
-          console.log('⚠️ No specific postal code column found, trying fallback extraction...');
-          if (result.data.preview?.rows) {
+          // Fallback to preview extraction (old method)
+          console.log('⚠️ No allPostalCodes from backend, using preview extraction...');
+          
+          // Find the postal code column more robustly
+          const postalCodeColumnIndex = result.data.postalCodeColumn !== undefined ? 
+            result.data.postalCodeColumn : 
+            result.data.headers.findIndex((header: string) => {
+              const lowerHeader = header.toLowerCase();
+              return lowerHeader.includes('postal') || 
+                     lowerHeader.includes('code') || 
+                     lowerHeader.includes('zip') ||
+                     lowerHeader.includes('cp') ||
+                     lowerHeader.includes('postcode');
+            });
+          
+          console.log('🔍 Postal code column index:', postalCodeColumnIndex);
+          console.log('🔍 Postal code column name:', postalCodeColumnIndex >= 0 ? result.data.headers[postalCodeColumnIndex] : 'Not found');
+          
+          if (postalCodeColumnIndex >= 0 && result.data.preview?.rows) {
             postalCodes = result.data.preview.rows
-              .flatMap((row: any) => 
-                row.data
-                  .map((cell: any) => cell?.toString().trim())
-                  .filter((cell: string) => {
-                    // Look for patterns that look like postal codes (5 digits for US, 5 digits for FR, etc.)
-                    return /^\d{5}$/.test(cell) || /^\d{4,6}$/.test(cell);
-                  })
-              )
-              .filter((code: string, index: number, arr: string[]) => arr.indexOf(code) === index); // Remove duplicates
+              .map((row: any) => {
+                const code = row.data[postalCodeColumnIndex];
+                return code && code.toString().trim() !== '' ? code.toString().trim() : null;
+              })
+              .filter((code: string | null) => code !== null);
+          } else {
+            // Fallback: try to extract from any column that looks like postal codes
+            console.log('⚠️ No specific postal code column found, trying fallback extraction...');
+            if (result.data.preview?.rows) {
+              postalCodes = result.data.preview.rows
+                .flatMap((row: any) => 
+                  row.data
+                    .map((cell: any) => cell?.toString().trim())
+                    .filter((cell: string) => {
+                      // Look for patterns that look like postal codes (5 digits for US, 5 digits for FR, etc.)
+                      return /^\d{5}$/.test(cell) || /^\d{4,6}$/.test(cell);
+                    })
+                )
+                .filter((code: string, index: number, arr: string[]) => arr.indexOf(code) === index); // Remove duplicates
+            }
           }
         }
         
         console.log('📦 Extracted postal codes:', postalCodes);
         
-        // Save to localStorage
-        localStorage.setItem('uploadedPostalCodes', JSON.stringify(postalCodes));
-        localStorage.setItem('uploadedPostalCodesCount', postalCodes.length.toString());
-        console.log('✅ Saved postal codes to localStorage:', postalCodes);
+        // Check if we have a large number of postal codes
+        if (postalCodes.length > 1000) { // Large file threshold
+          console.log('📊 Large file detected:', postalCodes.length, 'postal codes');
+          
+          try {
+            // For large files, store on backend
+            const storeResult = await uploadService.storePostalCodes(postalCodes);
+            console.log('✅ Stored postal codes on backend:', storeResult);
+            
+            // Also store a sample in localStorage for immediate access
+            const sampleSize = Math.min(1000, postalCodes.length);
+            const sample = postalCodes.slice(0, sampleSize);
+            localStorage.setItem('uploadedPostalCodes', JSON.stringify(sample));
+            localStorage.setItem('uploadedPostalCodesCount', sampleSize.toString());
+            localStorage.setItem('uploadedPostalCodesTotal', postalCodes.length.toString());
+            localStorage.setItem('useBackendStorage', 'true');
+            
+            console.log('📦 Backend storage with sample in localStorage:', sampleSize, 'sample codes');
+          } catch (error) {
+            console.error('❌ Failed to store on backend, falling back to localStorage:', error);
+            
+            // Fallback to localStorage with splitting
+            const localStorageLimit = 1000;
+            const forLocalStorage = postalCodes.slice(0, localStorageLimit);
+            const forSessionStorage = postalCodes.slice(localStorageLimit);
+            
+            localStorage.setItem('uploadedPostalCodes', JSON.stringify(forLocalStorage));
+            localStorage.setItem('uploadedPostalCodesCount', forLocalStorage.length.toString());
+            localStorage.setItem('uploadedPostalCodesTotal', postalCodes.length.toString());
+            localStorage.setItem('useBackendStorage', 'false');
+            
+            if (forSessionStorage.length > 0) {
+              sessionStorage.setItem('uploadedPostalCodesRemaining', JSON.stringify(forSessionStorage));
+              console.log('📦 Split storage: localStorage:', forLocalStorage.length, 'sessionStorage:', forSessionStorage.length);
+            }
+          }
+        } else {
+          // For smaller files, use localStorage as before
+          localStorage.setItem('uploadedPostalCodes', JSON.stringify(postalCodes));
+          localStorage.setItem('uploadedPostalCodesCount', postalCodes.length.toString());
+          localStorage.setItem('uploadedPostalCodesTotal', postalCodes.length.toString());
+          localStorage.setItem('useBackendStorage', 'false');
+        }
+        
+        console.log('✅ Saved postal codes to storage:', postalCodes.length, 'total codes');
+        
+        // Créer automatiquement un projet pour ce traitement
+        try {
+          const projectResult = await projectService.createProjectFromUpload(
+            uploadedFiles[0].name,
+            postalCodes.length
+          );
+          
+          if (projectResult.success && projectResult.project) {
+            console.log('✅ Project created:', projectResult.project);
+            localStorage.setItem('currentProjectId', projectResult.project.id.toString());
+            localStorage.setItem('currentProjectName', projectResult.project.name);
+            toast.success(`Project "${projectResult.project.name}" created successfully!`);
+          } else {
+            console.error('❌ Failed to create project:', projectResult.error);
+            // Continuer même si la création du projet échoue
+          }
+        } catch (projectError) {
+          console.error('❌ Error creating project:', projectError);
+          // Continuer même si la création du projet échoue
+        }
         
         if (postalCodes.length === 0) {
           console.warn('⚠️ No postal codes extracted from the file!');
-          toast.error('Aucun code postal trouvé dans le fichier. Vérifiez le format de votre fichier.');
+          toast.error('No postal codes found in the file. Please check your file format.');
+        } else {
+          toast.success(`File uploaded successfully! ${postalCodes.length} postal codes detected.`);
         }
       }
       
-      toast.success('File uploaded and processed successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error('Upload failed. Please try again.');
+      
+      // Detailed error handling
+      if (error.response) {
+        // Server response error
+        const errorMessage = error.response.data?.message || 'Upload error';
+        console.error('Server error:', error.response.status, errorMessage);
+        toast.error(`Server error: ${errorMessage}`);
+      } else if (error.request) {
+        // Network error
+        console.error('Network error:', error.request);
+        toast.error('Connection error. Please check your internet connection.');
+      } else {
+        // Other error
+        console.error('Other error:', error.message);
+        toast.error(`Error: ${error.message}`);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -128,10 +226,10 @@ const UploadPage: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Upload de vos codes postaux
+          Upload Your Postal Codes
         </h1>
         <p className="text-lg text-gray-600">
-          Importez votre fichier Excel ou CSV contenant vos codes postaux pour commencer l'analyse.
+          Import your Excel or CSV file containing your postal codes to start the analysis.
         </p>
       </div>
 
@@ -154,12 +252,12 @@ const UploadPage: React.FC = () => {
             </div>
             <div>
               <p className="text-lg font-medium text-gray-900">
-                {isDragActive ? 'Déposez le fichier ici' : 'Glissez-déposez votre fichier ici'}
+                {isDragActive ? 'Drop the file here' : 'Drag and drop your file here'}
               </p>
-              <p className="text-gray-500 mt-2">ou cliquez pour sélectionner</p>
+              <p className="text-gray-500 mt-2">or click to select</p>
             </div>
             <p className="text-sm text-gray-400">
-              Formats supportés: .xlsx, .xls, .csv (max 10MB)
+              Supported formats: .xlsx, .xls, .csv (max 10MB)
             </p>
           </div>
         </div>
@@ -169,7 +267,7 @@ const UploadPage: React.FC = () => {
       {uploadedFiles.length > 0 && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Fichier sélectionné
+            Selected File
           </h3>
           <div className="space-y-3">
             {uploadedFiles.map((file, index) => (
@@ -214,10 +312,10 @@ const UploadPage: React.FC = () => {
             {isUploading ? (
               <div className="flex items-center space-x-2">
                 <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                <span>Validation...</span>
+                <span>Validating...</span>
               </div>
             ) : (
-              'Valider le fichier'
+              'Validate File'
             )}
           </button>
           <button
@@ -230,10 +328,10 @@ const UploadPage: React.FC = () => {
             {isUploading ? (
               <div className="flex items-center space-x-2">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Upload en cours...</span>
+                <span>Uploading...</span>
               </div>
             ) : (
-              'Continuer vers l\'analyse'
+              'Continue to Analysis'
             )}
           </button>
         </div>
@@ -243,20 +341,20 @@ const UploadPage: React.FC = () => {
       {validationResult && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Résultats de la validation
+            Validation Results
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">{validationResult.data.statistics.valid}</div>
-              <div className="text-sm text-green-700">Codes postaux valides</div>
+              <div className="text-sm text-green-700">Valid postal codes</div>
             </div>
             <div className="text-center p-4 bg-red-50 rounded-lg">
               <div className="text-2xl font-bold text-red-600">{validationResult.data.statistics.invalid}</div>
-              <div className="text-sm text-red-700">Codes postaux invalides</div>
+              <div className="text-sm text-red-700">Invalid postal codes</div>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg">
               <div className="text-2xl font-bold text-yellow-600">{validationResult.data.statistics.duplicates}</div>
-              <div className="text-sm text-yellow-700">Doublons</div>
+              <div className="text-sm text-yellow-700">Duplicates</div>
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">{validationResult.data.statistics.total}</div>
@@ -296,20 +394,20 @@ const UploadPage: React.FC = () => {
       {uploadResult && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Fichier traité avec succès
+            File Processed Successfully
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">{uploadResult.data.statistics.valid}</div>
-              <div className="text-sm text-green-700">Codes postaux valides</div>
+              <div className="text-sm text-green-700">Valid postal codes</div>
             </div>
             <div className="text-center p-4 bg-red-50 rounded-lg">
               <div className="text-2xl font-bold text-red-600">{uploadResult.data.statistics.invalid}</div>
-              <div className="text-sm text-red-700">Codes postaux invalides</div>
+              <div className="text-sm text-red-700">Invalid postal codes</div>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg">
               <div className="text-2xl font-bold text-yellow-600">{uploadResult.data.statistics.duplicates}</div>
-              <div className="text-sm text-yellow-700">Doublons</div>
+              <div className="text-sm text-yellow-700">Duplicates</div>
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">{uploadResult.data.statistics.total}</div>
@@ -319,17 +417,33 @@ const UploadPage: React.FC = () => {
           
           <div className="text-center">
             <button 
-              onClick={() => {
-                // Save upload ID to localStorage for tracking
-                localStorage.setItem('currentUploadId', uploadResult.data.uploadId.toString());
-                // Create a mock project ID for now (in real app, this would come from user session)
-                const projectId = uploadResult.data.uploadId;
-                localStorage.setItem('currentProjectId', projectId.toString());
-                navigate(`/targeting?projectId=${projectId}`);
+              onClick={async () => {
+                try {
+                  // Créer un vrai projet pour ce traitement
+                  const projectResult = await projectService.createProjectFromUpload(
+                    uploadedFiles[0].name,
+                    uploadResult.data.statistics.total
+                  );
+                  
+                  if (projectResult.success && projectResult.project) {
+                    console.log('✅ Project created:', projectResult.project);
+                    toast.success(`Project "${projectResult.project.name}" created successfully!`);
+                    
+                    // Navigate to targeting page with real project ID and postal codes
+                    const postalCodesParam = encodeURIComponent(JSON.stringify(uploadResult.data.allPostalCodes || []));
+                    navigate(`/targeting?projectId=${projectResult.project.id}&postalCodes=${postalCodesParam}`);
+                  } else {
+                    console.error('❌ Failed to create project:', projectResult.error);
+                    toast.error('Failed to create project. Please try again.');
+                  }
+                } catch (projectError) {
+                  console.error('❌ Error creating project:', projectError);
+                  toast.error('Error creating project. Please try again.');
+                }
               }}
               className="btn-primary"
             >
-              Continuer vers le targeting
+              Continue to Targeting
             </button>
           </div>
         </div>
@@ -338,16 +452,19 @@ const UploadPage: React.FC = () => {
       {/* Instructions */}
       <div className="card bg-blue-50 border-blue-200">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">
-          Instructions pour le format du fichier
+          File Format Instructions
         </h3>
         <div className="space-y-2 text-blue-800">
-          <p>• Votre fichier doit contenir une colonne avec les codes postaux</p>
-          <p>• Les codes postaux peuvent être dans n'importe quelle colonne</p>
-          <p>• Formats supportés: Excel (.xlsx, .xls) et CSV</p>
-          <p>• Taille maximale: 10 MB</p>
-          <p>• Nous détecterons automatiquement la colonne des codes postaux</p>
+          <p>• Your file must contain a column with postal codes</p>
+          <p>• Postal codes can be in any column</p>
+          <p>• Supported formats: Excel (.xlsx, .xls) and CSV</p>
+          <p>• Maximum size: 10 MB</p>
+          <p>• We will automatically detect the postal code column</p>
         </div>
       </div>
+
+      {/* Upload Tester for debugging */}
+      <UploadTester />
     </div>
   );
 };

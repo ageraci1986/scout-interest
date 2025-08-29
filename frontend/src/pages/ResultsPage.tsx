@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import metaService, { MetaTargetingSpec, BatchPostalCodeResult, PostalCodeReachEstimate } from '../services/metaService';
 import CountrySelector from '../components/CountrySelector';
+import projectService from '../services/projectService';
 
 interface ResultsPageProps {}
 
@@ -43,7 +44,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
-    // Load data from localStorage or location state
+    // Load data from URL parameters and database
     const loadData = async () => {
       try {
         console.log('🔄 Loading data...');
@@ -53,74 +54,121 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         setAdAccountId(config.ad_account_id);
         console.log('✅ Ad Account ID loaded:', config.ad_account_id);
 
-        // Load targeting spec from localStorage
-        const savedTargetingSpec = localStorage.getItem('targetingSpec');
-        const savedInterests = localStorage.getItem('selectedInterests');
+        // Get projectId from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectIdParam = urlParams.get('projectId');
+        const postalCodesParam = urlParams.get('postalCodes');
         
-        console.log('📋 Saved data:', { 
-          hasTargetingSpec: !!savedTargetingSpec, 
-          hasInterests: !!savedInterests 
-        });
-        
-        if (savedTargetingSpec && savedInterests) {
-          const parsedTargetingSpec = JSON.parse(savedTargetingSpec);
-          const parsedInterests = JSON.parse(savedInterests);
+        if (projectIdParam) {
+          console.log('📦 Loading data for project:', projectIdParam);
           
-          // Convert to MetaTargetingSpec (without geo_locations)
-          const metaTargetingSpec: MetaTargetingSpec = {
-            interests: parsedInterests.map((interest: any) => ({
-              id: interest.id,
-              name: interest.name
-            })),
-            age_min: parsedTargetingSpec.age_min || 18,
-            age_max: parsedTargetingSpec.age_max || 65,
-            genders: parsedTargetingSpec.genders?.filter((g: string) => g !== 'all') || [],
-            device_platforms: parsedTargetingSpec.devices?.filter((d: string) => d !== 'all') || []
-          };
-          
-          setTargetingSpec(metaTargetingSpec);
-          console.log('✅ Targeting spec loaded:', metaTargetingSpec);
+          // Load project data from database
+          const projectResult = await projectService.getProject(parseInt(projectIdParam, 10));
+          if (projectResult.success && projectResult.project) {
+            console.log('✅ Project loaded:', projectResult.project);
+            
+            // Use postal codes from URL if available, otherwise use defaults
+            let postalCodesList = [];
+            if (postalCodesParam) {
+              try {
+                postalCodesList = JSON.parse(decodeURIComponent(postalCodesParam));
+                console.log('✅ Using postal codes from URL:', postalCodesList);
+              } catch (error) {
+                console.error('❌ Error parsing postal codes from URL:', error);
+                postalCodesList = ['75001', '75002', '75003', '75004', '75005', '75006', '75007', '75008', '75009', '75010'];
+              }
+            } else {
+              // Fallback to default postal codes
+              postalCodesList = ['75001', '75002', '75003', '75004', '75005', '75006', '75007', '75008', '75009', '75010'];
+              console.log('⚠️ No postal codes in URL, using defaults:', postalCodesList);
+            }
+            
+            setPostalCodes(postalCodesList);
+            setStats(prev => ({ ...prev, total: postalCodesList.length }));
+            
+            console.log('✅ Postal codes loaded:', postalCodesList);
+
+            // Load existing results from database if project has results
+            console.log('📋 Loading existing results for project:', projectIdParam);
+            try {
+              const result = await projectService.getProjectResults(parseInt(projectIdParam, 10));
+              
+              if (result.success && result.results && result.results.length > 0) {
+                console.log('✅ Existing results found:', result.results.length, 'items');
+                
+                // Convertir les résultats de la base de données au format de l'interface
+                const convertedResults = result.results.map((dbResult: any) => ({
+                  postalCode: dbResult.postal_code,
+                  country: dbResult.country_code,
+                  postalCodeOnly: {
+                    users_lower_bound: dbResult.postal_code_only_estimate?.data?.users_lower_bound,
+                    users_upper_bound: dbResult.postal_code_only_estimate?.data?.users_upper_bound
+                  },
+                  withTargeting: {
+                    users_lower_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_lower_bound,
+                    users_upper_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_upper_bound
+                  },
+                  status: dbResult.success ? 'completed' as const : 'error' as const,
+                  error: dbResult.error_message
+                }));
+                
+                setResults(convertedResults);
+                console.log('✅ Interface updated with existing results');
+              } else {
+                console.log('ℹ️ No existing results found, initializing empty results array');
+                // Initialize results array only if no existing results
+                const initialResults = postalCodesList.map((code: string) => ({
+                  postalCode: code,
+                  country: selectedCountry,
+                  postalCodeOnly: {},
+                  withTargeting: {},
+                  status: 'pending' as const
+                }));
+                setResults(initialResults);
+                console.log('✅ Results array initialized with', initialResults.length, 'items');
+              }
+            } catch (error) {
+              console.error('❌ Error loading existing results:', error);
+              // Fallback to empty results array
+              const initialResults = postalCodesList.map((code: string) => ({
+                postalCode: code,
+                country: selectedCountry,
+                postalCodeOnly: {},
+                withTargeting: {},
+                status: 'pending' as const
+              }));
+              setResults(initialResults);
+              console.log('✅ Fallback: Results array initialized with', initialResults.length, 'items');
+            }
+
+            // Load targeting spec from project if available
+            if (projectResult.project.targeting_spec) {
+              console.log('✅ Loading targeting spec from project:', projectResult.project.targeting_spec);
+              setTargetingSpec(projectResult.project.targeting_spec);
+            } else {
+              // Set default targeting spec if none is loaded
+              const defaultTargetingSpec: MetaTargetingSpec = {
+                age_min: 18,
+                age_max: 65,
+                genders: ['1', '2'],
+                device_platforms: ['mobile', 'desktop']
+              };
+              setTargetingSpec(defaultTargetingSpec);
+              console.log('✅ Default targeting spec set:', defaultTargetingSpec);
+            }
+          } else {
+            console.error('❌ Failed to load project:', projectResult.error);
+            toast.error('Erreur lors du chargement du projet');
+            navigate('/projects');
+            return;
+          }
         } else {
-          console.warn('⚠️ No targeting spec found in localStorage');
+          console.warn('⚠️ No projectId in URL, redirecting to projects page');
+          navigate('/projects');
+          return;
         }
 
-        // Load postal codes from localStorage (from uploaded file) or fallback to project
-        const uploadedPostalCodes = localStorage.getItem('uploadedPostalCodes');
-        const uploadedPostalCodesCount = localStorage.getItem('uploadedPostalCodesCount');
-        let postalCodesList = [];
-        
-        console.log('🔍 Checking localStorage for postal codes...');
-        console.log('🔍 uploadedPostalCodes:', uploadedPostalCodes);
-        console.log('🔍 uploadedPostalCodesCount:', uploadedPostalCodesCount);
-        
-        if (uploadedPostalCodes) {
-          // Use uploaded postal codes
-          postalCodesList = JSON.parse(uploadedPostalCodes);
-          console.log('✅ Using uploaded postal codes from localStorage:', postalCodesList);
-        } else {
-          // Fallback to project postal codes
-          const urlParams = new URLSearchParams(window.location.search);
-          const projectIdParam = urlParams.get('projectId') || localStorage.getItem('currentProjectId') || '1';
-          const projectId = parseInt(projectIdParam, 10);
-          console.log('📦 Loading postal codes for project:', projectId);
-          const projectData = await metaService.getProjectPostalCodes(projectId);
-          postalCodesList = projectData.postalCodes.map(pc => pc.postal_code);
-          console.log('✅ Using project postal codes:', postalCodesList);
-        }
-        
-        setPostalCodes(postalCodesList);
-        setStats(prev => ({ ...prev, total: postalCodesList.length }));
 
-        // Initialize results array
-        const initialResults = postalCodesList.map((code: string) => ({
-          postalCode: code,
-          country: selectedCountry,
-          postalCodeOnly: {},
-          withTargeting: {},
-          status: 'pending' as const
-        }));
-        setResults(initialResults);
-        console.log('✅ Results array initialized with', initialResults.length, 'items');
 
       } catch (error) {
         console.error('❌ Error loading data:', error);
@@ -211,19 +259,29 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     }
   };
 
-  const startProcessing = async () => {
+  const startParallelProcessing = async () => {
     if (!adAccountId || !targetingSpec || postalCodes.length === 0) {
       toast.error('Données manquantes pour le traitement');
       console.error('Missing data:', { adAccountId, targetingSpec: !!targetingSpec, postalCodesLength: postalCodes.length });
       return;
     }
 
-    console.log('🚀 Starting processing with:', {
+    // Récupérer le projectId depuis l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get('projectId');
+    console.log('🚀 Starting parallel processing with:', {
       adAccountId,
       targetingSpec,
       postalCodes,
-      totalCodes: postalCodes.length
+      totalCodes: postalCodes.length,
+      projectId: projectId || 'NOT_FOUND'
     });
+
+    if (!projectId) {
+      console.error('❌ No projectId found in URL');
+      toast.error('Project ID manquant');
+      return;
+    }
 
     setIsProcessing(true);
     isProcessingRef.current = true;
@@ -231,36 +289,124 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     setCurrentIndex(0);
     setStats(prev => ({ ...prev, completed: 0, errors: 0, success: 0 }));
 
-    // Process postal codes sequentially to respect rate limits
-    for (let i = 0; i < postalCodes.length; i++) {
-      // Check if processing was stopped
+    // Polling des vraies statistiques de progression en temps réel
+    const statsInterval = setInterval(async () => {
       if (!isProcessingRef.current) {
-        console.log('⏹️ Processing stopped by user');
-        break; // Allow stopping
+        clearInterval(statsInterval);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/meta/processing-status');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            const stats = data.data;
+            console.log(`📊 Real progress: ${stats.processed}/${stats.total} (${stats.successful} success, ${stats.errors} errors)`);
+            
+            // Mettre à jour les statistiques avec les vraies données
+            setStats({
+              total: stats.total || postalCodes.length,
+              completed: stats.processed || 0,
+              success: stats.successful || 0,
+              errors: stats.errors || 0
+            });
+            
+            // Mettre à jour la progression
+            if (stats.total > 0) {
+              const newProgress = (stats.processed / stats.total) * 100;
+              setProgress(Math.min(newProgress, 95)); // Ne pas dépasser 95% avant la fin
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error fetching processing status:', error);
+      }
+    }, 1000); // Mise à jour toutes les secondes
+
+    // Utiliser le backend pour le traitement parallèle optimisé
+    try {
+      const requestBody = {
+        adAccountId,
+        postalCodes,
+        countryCode: selectedCountry,
+        targetingSpec,
+        projectId: parseInt(projectId, 10) // Convertir en nombre
+      };
+
+      console.log('📤 Sending request to backend:', {
+        ...requestBody,
+        postalCodes: `${requestBody.postalCodes.length} codes`
+      });
+
+      const response = await fetch('/api/meta/batch-postal-codes-reach-estimate-v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log(`📦 Processing postal code ${i + 1}/${postalCodes.length}: ${postalCodes[i]}`);
-      console.log(`🔍 isProcessing state: ${isProcessingRef.current}`);
-      
-      setCurrentIndex(i);
-      await processPostalCode(postalCodes[i], i);
-      
-      // Update progress
-      const newProgress = ((i + 1) / postalCodes.length) * 100;
-      setProgress(newProgress);
-      console.log(`📊 Progress: ${newProgress.toFixed(1)}%`);
+      const data = await response.json();
+      console.log('✅ Backend parallel processing completed:', {
+        success: data.success,
+        projectId: data.data?.projectId,
+        totalProcessed: data.data?.totalProcessed,
+        successful: data.data?.successful,
+        errors: data.data?.errors
+      });
 
-      // Add delay to respect rate limits
-      if (i < postalCodes.length - 1) {
-        console.log('⏳ Waiting 1 second before next request...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Récupérer les résultats depuis la base de données
+      if (data.success && data.data?.projectId) {
+        console.log('📋 Loading results from database for project:', data.data.projectId);
+        try {
+          const result = await projectService.getProjectResults(data.data.projectId);
+          
+          if (result.success && result.results) {
+            console.log('✅ Results loaded from database:', result.results.length, 'items');
+            
+            // Convertir les résultats de la base de données au format de l'interface
+            const convertedResults = result.results.map((dbResult: any) => ({
+              postalCode: dbResult.postal_code,
+              country: dbResult.country_code,
+              postalCodeOnly: {
+                users_lower_bound: dbResult.postal_code_only_estimate?.data?.users_lower_bound,
+                users_upper_bound: dbResult.postal_code_only_estimate?.data?.users_upper_bound
+              },
+              withTargeting: {
+                users_lower_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_lower_bound,
+                users_upper_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_upper_bound
+              },
+              status: dbResult.success ? 'completed' as const : 'error' as const,
+              error: dbResult.error_message
+            }));
+            
+            setResults(convertedResults);
+            console.log('✅ Interface updated with database results');
+          } else {
+            console.error('❌ Failed to load results from database:', result.error);
+          }
+        } catch (error) {
+          console.error('❌ Error loading results from database:', error);
+        }
       }
+
+      // Arrêter le polling des statistiques
+      clearInterval(statsInterval);
+      setProgress(100);
+
+    } catch (error) {
+      console.error('❌ Error during parallel processing:', error);
+      toast.error('Erreur lors du traitement parallèle des codes postaux');
+    } finally {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+      toast.success('Traitement terminé !');
     }
-
-    console.log('✅ Processing completed');
-    setIsProcessing(false);
-    isProcessingRef.current = false;
-    toast.success('Traitement terminé !');
   };
 
   const stopProcessing = () => {
@@ -414,7 +560,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
             <div className="flex space-x-4">
               {!isProcessing ? (
                 <button
-                  onClick={startProcessing}
+                  onClick={startParallelProcessing}
                   disabled={postalCodes.length === 0}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

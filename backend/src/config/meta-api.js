@@ -64,9 +64,8 @@ class MetaApiService {
 
   // Search for interests
   async searchInterests(query, limit = 10) {
-    // If not configured, return mock data
     if (!this.isConfigured) {
-      return this.getMockInterests(query, limit);
+      throw new Error('Meta API not configured');
     }
 
     if (!this.rateLimiter.canMakeCall()) {
@@ -87,82 +86,11 @@ class MetaApiService {
         }
       );
 
-      return response.data;
+      return response.data || [];
     } catch (error) {
       console.error('Error searching interests:', error);
-      // Fallback to mock data on error
-      return this.getMockInterests(query, limit);
+      throw error;
     }
-  }
-
-  // Mock interests for development
-  getMockInterests(query, limit = 10) {
-    const mockInterests = [
-      {
-        id: '6002714396372',
-        name: 'Fitness',
-        audience_size: 15000000,
-        path: ['Sports', 'Fitness'],
-        description: 'People interested in fitness and exercise'
-      },
-      {
-        id: '6002714396373',
-        name: 'Cooking',
-        audience_size: 25000000,
-        path: ['Food & Drink', 'Cooking'],
-        description: 'People interested in cooking and recipes'
-      },
-      {
-        id: '6002714396374',
-        name: 'Travel',
-        audience_size: 30000000,
-        path: ['Travel'],
-        description: 'People interested in travel and tourism'
-      },
-      {
-        id: '6002714396375',
-        name: 'Technology',
-        audience_size: 20000000,
-        path: ['Technology'],
-        description: 'People interested in technology and gadgets'
-      },
-      {
-        id: '6002714396376',
-        name: 'Fashion',
-        audience_size: 18000000,
-        path: ['Fashion'],
-        description: 'People interested in fashion and style'
-      },
-      {
-        id: '6002714396377',
-        name: 'Music',
-        audience_size: 35000000,
-        path: ['Entertainment', 'Music'],
-        description: 'People interested in music'
-      },
-      {
-        id: '6002714396378',
-        name: 'Gaming',
-        audience_size: 12000000,
-        path: ['Entertainment', 'Gaming'],
-        description: 'People interested in video games'
-      },
-      {
-        id: '6002714396379',
-        name: 'Business',
-        audience_size: 15000000,
-        path: ['Business'],
-        description: 'People interested in business and entrepreneurship'
-      }
-    ];
-
-    // Filter based on query
-    const filtered = mockInterests.filter(interest =>
-      interest.name.toLowerCase().includes(query.toLowerCase()) ||
-      interest.description.toLowerCase().includes(query.toLowerCase())
-    );
-
-    return filtered.slice(0, limit);
   }
 
   // Get reach estimate (taille d'audience)

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export interface Interest {
   id: string;
@@ -25,13 +25,32 @@ export interface TargetingSpec {
 
 // Meta API specific targeting spec
 export interface MetaTargetingSpec {
-  interests?: { id: string; name: string }[];
+  interests?: Interest[];
+  interestGroups?: InterestGroup[];
   geo_locations?: { countries: string[] }[];
   age_min?: number;
   age_max?: number;
   genders?: string[];
   device_platforms?: string[];
   country_code?: string; // New field for postal code targeting
+}
+
+// Advanced targeting spec with interest groups
+export interface AdvancedTargetingSpec {
+  interestGroups: InterestGroup[];
+  age_min?: number;
+  age_max?: number;
+  genders?: string[];
+  device_platforms?: string[];
+  countries?: string[];
+}
+
+// Interest group interface
+export interface InterestGroup {
+  id: string;
+  name: string;
+  operator: 'AND' | 'OR';
+  interests: Interest[];
 }
 
 export interface DeliveryEstimate {
@@ -96,7 +115,7 @@ class MetaService {
   // Search interests
   async searchInterests(query: string, limit: number = 10): Promise<Interest[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/interests/search`, {
+      const response = await axios.get(`${API_BASE_URL}/meta/interests/search`, {
         params: { q: query, limit }
       });
       return response.data.data || [];
@@ -109,7 +128,7 @@ class MetaService {
   // Get reach estimate (taille d'audience)
   async getDeliveryEstimate(adAccountId: string, targetingSpec: MetaTargetingSpec): Promise<DeliveryEstimate> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/meta/reach-estimate`, {
+      const response = await axios.post(`${API_BASE_URL}/meta/reach-estimate`, {
         adAccountId,
         targetingSpec
       });
@@ -121,10 +140,25 @@ class MetaService {
     }
   }
 
+  // Get advanced delivery estimate with interest groups
+  async getAdvancedDeliveryEstimate(adAccountId: string, advancedTargetingSpec: AdvancedTargetingSpec): Promise<DeliveryEstimate> {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/meta/reach-estimate`, {
+        adAccountId,
+        advancedTargetingSpec: advancedTargetingSpec
+      });
+      
+      return response.data.data;
+    } catch (error) {
+      console.error('Error getting advanced delivery estimate:', error);
+      throw error;
+    }
+  }
+
   // Get targeting sentence lines
   async getTargetingSentenceLines(adAccountId: string, query: string) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/targeting-sentence-lines`, {
+      const response = await axios.get(`${API_BASE_URL}/meta/targeting-sentence-lines`, {
         params: { adAccountId, q: query }
       });
       return response.data.data || [];
@@ -137,7 +171,7 @@ class MetaService {
   // Validate access token
   async validateToken() {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/validate-token`);
+      const response = await axios.get(`${API_BASE_URL}/meta/validate-token`);
       return response.data.data;
     } catch (error) {
       console.error('Error validating token:', error);
@@ -148,7 +182,7 @@ class MetaService {
   // Get rate limit status
   async getRateLimitStatus() {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/rate-limit`);
+      const response = await axios.get(`${API_BASE_URL}/meta/rate-limit`);
       return response.data.data;
     } catch (error) {
       console.error('Error getting rate limit status:', error);
@@ -159,7 +193,7 @@ class MetaService {
   // Get ad account configuration
   async getAdAccountConfig() {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/ad-account`);
+      const response = await axios.get(`${API_BASE_URL}/meta/ad-account`);
       return response.data.data;
     } catch (error) {
       console.error('Error getting ad account config:', error);
@@ -174,7 +208,7 @@ class MetaService {
     limit: number = 10
   ): Promise<PostalCodeSearchResult> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/search-postal-codes`, {
+      const response = await axios.get(`${API_BASE_URL}/search-postal-codes`, {
         params: { q: query, country_code, limit }
       });
       return response.data.data;
@@ -190,7 +224,7 @@ class MetaService {
     targetingSpec: MetaTargetingSpec
   ): Promise<PostalCodeReachEstimate> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/meta/postal-code-reach-estimate-v2`, {
+      const response = await axios.post(`${API_BASE_URL}/postal-code-reach-estimate-v2`, {
         adAccountId,
         postalCode,
         targetingSpec
@@ -208,7 +242,7 @@ class MetaService {
     targetingSpec: MetaTargetingSpec
   ): Promise<BatchPostalCodeResult> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/meta/batch-postal-codes-reach-estimate-v2`, {
+      const response = await axios.post(`${API_BASE_URL}/batch-postal-codes-reach-estimate-v2`, {
         adAccountId,
         postalCodes,
         targetingSpec
@@ -226,7 +260,7 @@ class MetaService {
     targetingSpec: MetaTargetingSpec
   ): Promise<BatchPostalCodeResult> {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/meta/project-postal-codes-reach-estimate-v2`, {
+      const response = await axios.post(`${API_BASE_URL}/project-postal-codes-reach-estimate-v2`, {
         projectId,
         adAccountId,
         targetingSpec
@@ -250,13 +284,51 @@ class MetaService {
     invalid: number;
   }> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/meta/project/${projectId}/postal-codes`);
+      const response = await axios.get(`${API_BASE_URL}/project/${projectId}/postal-codes`);
       return response.data.data;
     } catch (error) {
       console.error('Error getting project postal codes:', error);
       throw error;
     }
   }
+
+  // Rate limit configuration methods
+  async getRateLimitsConfig() {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/rate-limits-config`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error getting rate limits config:', error);
+      throw error;
+    }
+  }
+
+  async updateRateLimitEnvironment(environment: string) {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/rate-limits-config`, {
+        environment
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error updating rate limit environment:', error);
+      throw error;
+    }
+  }
+
+  async estimateProcessingTime(postalCodes: number, environment: string) {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/estimate-processing-time`, {
+        postalCodes,
+        environment
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error estimating processing time:', error);
+      throw error;
+    }
+  }
+
+
 }
 
 export default new MetaService();
