@@ -610,7 +610,7 @@ router.post('/project-postal-codes-reach-estimate-v2', async (req, res) => {
     const errors = [];
 
     // Process postal codes in batches to respect rate limits
-    const batchSize = 3; // Process 3 at a time (slower due to search API)
+          const batchSize = 10; // Process 10 at a time for better performance
     for (let i = 0; i < postalCodes.length; i += batchSize) {
       const batch = postalCodes.slice(i, i + batchSize);
       

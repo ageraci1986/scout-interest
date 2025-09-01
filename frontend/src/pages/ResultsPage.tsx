@@ -356,8 +356,8 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
            return;
          }
 
-         // Afficher un message informatif sur les limitations Meta
-         toast('⚠️ Meta API a des limitations strictes. Le traitement peut prendre du temps ou échouer si les quotas sont dépassés.');
+                 // Afficher un message informatif sur le traitement complet
+        toast(`🚀 Lancement de l'analyse complète pour ${postalCodes.length} codes postaux. Le traitement peut prendre plusieurs minutes.`);
 
     // Récupérer le projectId depuis l'URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -425,13 +425,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
 
     // Utiliser le backend pour le traitement parallèle optimisé
     try {
-      // Limit to 3 postal codes to avoid Meta API rate limits
-      const limitedPostalCodes = postalCodes.slice(0, 3);
-      console.log('🧪 Using limited postal codes:', limitedPostalCodes.length, 'codes to avoid Meta API limits');
-      
       const requestBody = {
         adAccountId,
-        postalCodes: limitedPostalCodes,
+        postalCodes,
         countryCode: selectedCountry,
         targetingSpec,
         projectId: parseInt(projectId, 10) // Convertir en nombre
