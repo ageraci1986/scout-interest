@@ -3,7 +3,8 @@
 ## 📋 Prérequis
 
 1. **Compte Vercel** : https://vercel.com
-2. **GitHub** : Votre code doit être sur GitHub
+2. **Compte Supabase** : https://supabase.com
+3. **GitHub** : Votre code doit être sur GitHub
 
 ## 🔧 Étape 1 : Déployer sur Vercel (Frontend + Backend)
 

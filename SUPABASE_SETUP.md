@@ -1,220 +1,192 @@
 # 🗄️ Configuration Supabase pour Scout Interest
 
-## 🎯 Problème Actuel
+## 📋 Prérequis
 
-Actuellement, l'application utilise une **base de données mock en mémoire** qui est réinitialisée à chaque redémarrage du backend. Cela explique pourquoi vous voyez "0% de succès" et "Aucun résultat" dans l'interface.
+1. **Compte Supabase** : https://supabase.com
+2. **GitHub** : Votre code doit être sur GitHub
 
-## ✅ Solution : Configuration Supabase
+## 🔧 Étape 1 : Créer un projet Supabase
 
-### 1. Créer un compte Supabase
+### 1.1 Créer le projet
+1. Allez sur https://supabase.com
+2. Cliquez "Start your project"
+3. Connectez-vous avec GitHub
+4. Cliquez "New Project"
+5. Configurez :
+   - **Organization** : Votre organisation
+   - **Name** : `scout-interest-db`
+   - **Database Password** : Créez un mot de passe fort
+   - **Region** : Choisissez la région la plus proche (Europe pour vous)
+6. Cliquez "Create new project"
 
-1. Allez sur [supabase.com](https://supabase.com)
-2. Créez un compte gratuit
-3. Créez un nouveau projet
+### 1.2 Attendre l'initialisation
+- Le projet prend 2-3 minutes à s'initialiser
+- Vous recevrez un email de confirmation
 
-### 2. Récupérer les clés d'API
+## 🔧 Étape 2 : Récupérer les informations de connexion
 
-1. Dans votre projet Supabase, allez dans **Settings** → **API**
-2. Copiez :
-   - **Project URL** (ex: `https://your-project.supabase.co`)
-   - **anon public** key (commence par `eyJ...`)
+### 2.1 Dans votre projet Supabase
+1. Allez dans **Settings** > **Database**
+2. Copiez les informations suivantes :
+   - **Host** : `db.xxxxxxxxxxxxx.supabase.co`
+   - **Database name** : `postgres`
+   - **Port** : `5432`
+   - **User** : `postgres`
+   - **Password** : Votre mot de passe
 
-### 3. Configurer les variables d'environnement
-
-Dans le dossier `backend`, créez ou modifiez le fichier `.env` :
-
-```bash
-# Meta API Configuration
-META_ACCESS_TOKEN=your_meta_access_token
-META_AD_ACCOUNT_ID=act_your_ad_account_id
-
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+### 2.2 URL de connexion
+L'URL de connexion sera au format :
+```
+postgresql://postgres:[YOUR-PASSWORD]@db.xxxxxxxxxxxxx.supabase.co:5432/postgres
 ```
 
-### 4. Créer les tables dans Supabase
+## 🔧 Étape 3 : Créer les tables dans Supabase
 
+### 3.1 Accéder à l'éditeur SQL
 1. Dans votre projet Supabase, allez dans **SQL Editor**
-2. Exécutez le script SQL suivant :
+2. Cliquez "New query"
+
+### 3.2 Exécuter le script de création des tables
+Copiez et exécutez ce script SQL :
 
 ```sql
--- Créer la table des projets
-CREATE TABLE projects (
-    id BIGSERIAL PRIMARY KEY,
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create projects table
+CREATE TABLE IF NOT EXISTS projects (
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    user_id VARCHAR(255) NOT NULL,
+    user_id VARCHAR(255) DEFAULT 'anonymous',
     status VARCHAR(50) DEFAULT 'active',
     total_postal_codes INTEGER DEFAULT 0,
     processed_postal_codes INTEGER DEFAULT 0,
     error_postal_codes INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    targeting_spec JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Créer la table des résultats de traitement
-CREATE TABLE processing_results (
-    id BIGSERIAL PRIMARY KEY,
-    project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+-- Create processing_results table
+CREATE TABLE IF NOT EXISTS processing_results (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
     postal_code VARCHAR(20) NOT NULL,
-    country_code VARCHAR(10) NOT NULL,
+    country_code VARCHAR(10) DEFAULT 'US',
     zip_data JSONB,
     postal_code_only_estimate JSONB,
     postal_code_with_targeting_estimate JSONB,
     targeting_spec JSONB,
-    success BOOLEAN DEFAULT false,
+    success BOOLEAN DEFAULT true,
     error_message TEXT,
-    processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Créer les index pour les performances
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_processing_results_project_id ON processing_results(project_id);
-CREATE INDEX idx_processing_results_postal_code ON processing_results(postal_code);
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_processing_results_project_id ON processing_results(project_id);
+CREATE INDEX IF NOT EXISTS idx_processing_results_postal_code ON processing_results(postal_code);
+CREATE INDEX IF NOT EXISTS idx_projects_targeting_spec ON projects USING GIN (targeting_spec);
 
--- Créer un trigger pour mettre à jour updated_at
+-- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
+-- Create trigger for projects table
 CREATE TRIGGER update_projects_updated_at 
     BEFORE UPDATE ON projects 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
--- Activer Row Level Security (RLS)
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE processing_results ENABLE ROW LEVEL SECURITY;
-
--- Créer les politiques RLS
-CREATE POLICY "Users can view their own projects" ON projects
-    FOR SELECT USING (user_id = 'anonymous');
-
-CREATE POLICY "Users can insert their own projects" ON projects
-    FOR INSERT WITH CHECK (user_id = 'anonymous');
-
-CREATE POLICY "Users can update their own projects" ON projects
-    FOR UPDATE USING (user_id = 'anonymous');
-
-CREATE POLICY "Users can delete their own projects" ON projects
-    FOR DELETE USING (user_id = 'anonymous');
-
-CREATE POLICY "Users can view results of their projects" ON processing_results
-    FOR SELECT USING (
-        project_id IN (
-            SELECT id FROM projects WHERE user_id = 'anonymous'
-        )
-    );
-
-CREATE POLICY "Users can insert results for their projects" ON processing_results
-    FOR INSERT WITH CHECK (
-        project_id IN (
-            SELECT id FROM projects WHERE user_id = 'anonymous'
-        )
-    );
-
--- Fonction pour obtenir les statistiques d'un projet
-CREATE OR REPLACE FUNCTION get_project_stats(project_id_param BIGINT)
-RETURNS TABLE(
-    total_postal_codes BIGINT,
-    processed_postal_codes BIGINT,
-    error_postal_codes BIGINT
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        COUNT(*)::BIGINT as total_postal_codes,
-        COUNT(*) FILTER (WHERE success = true)::BIGINT as processed_postal_codes,
-        COUNT(*) FILTER (WHERE success = false)::BIGINT as error_postal_codes
-    FROM processing_results 
-    WHERE project_id = project_id_param;
-END;
-$$ LANGUAGE plpgsql;
+-- Insert sample data (optional)
+INSERT INTO projects (name, description, user_id, total_postal_codes) 
+VALUES ('Sample Project', 'Sample project for testing', 'anonymous', 10)
+ON CONFLICT DO NOTHING;
 ```
 
-### 5. Redémarrer le backend
+## 🔧 Étape 4 : Configurer les variables d'environnement
+
+### 4.1 Variables pour Vercel
+Dans votre projet Vercel, ajoutez ces variables d'environnement :
+
+```
+# Supabase Configuration
+DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.xxxxxxxxxxxxx.supabase.co:5432/postgres
+
+# Meta API Configuration
+META_APP_ID=your_app_id
+META_APP_SECRET=your_app_secret
+META_ACCESS_TOKEN=your_access_token
+META_AD_ACCOUNT_ID=your_ad_account_id
+
+# CORS Configuration
+CORS_ORIGIN=https://your-project.vercel.app
+
+# Environment
+NODE_ENV=production
+```
+
+### 4.2 Remplacer les valeurs
+- Remplacez `[YOUR-PASSWORD]` par votre mot de passe Supabase
+- Remplacez `db.xxxxxxxxxxxxx.supabase.co` par votre host Supabase
+- Remplacez les valeurs Meta API par vos vraies valeurs
+
+## 🔧 Étape 5 : Tester la connexion
+
+### 5.1 Test local (optionnel)
+Si vous voulez tester localement :
 
 ```bash
+# Dans le dossier backend
 cd backend
-pkill -f "node src/server.js"
-node src/server.js
+
+# Créer un fichier .env avec les variables Supabase
+echo "DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.xxxxxxxxxxxxx.supabase.co:5432/postgres" > .env
+
+# Tester la connexion
+npm run test-db
 ```
 
-### 6. Vérifier la configuration
+## 🔧 Étape 6 : Déployer sur Vercel
 
-Vous devriez voir dans les logs :
-```
-✅ Supabase client initialized
-```
+### 6.1 Configuration Vercel
+1. Allez sur https://vercel.com
+2. Importez votre repo GitHub
+3. Configurez :
+   - **Framework Preset** : Other
+   - **Root Directory** : `/`
+   - **Build Command** : `cd frontend && npm run build`
+   - **Output Directory** : `frontend/build`
 
-Au lieu de :
-```
-⚠️  Supabase configuration missing. Using mock database.
-```
+### 6.2 Variables d'environnement Vercel
+Ajoutez toutes les variables d'environnement listées ci-dessus.
 
-## 🧪 Test de la configuration
+## 🐛 Dépannage
 
-### 1. Créer un projet
-```bash
-curl -X POST http://localhost:3001/api/projects \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test Supabase","description":"Test de la persistance","userId":"anonymous"}'
-```
+### Problème de connexion à la base de données
+- Vérifiez que l'URL DATABASE_URL est correcte
+- Vérifiez que le mot de passe est correct
+- Vérifiez que l'IP n'est pas bloquée (Supabase autorise toutes les IPs par défaut)
 
-### 2. Vérifier que le projet est créé
-```bash
-curl -X GET http://localhost:3001/api/projects/user/anonymous
-```
+### Problème de CORS
+- Vérifiez que CORS_ORIGIN pointe vers votre URL Vercel
+- Redémarrez l'application après modification
 
-### 3. Lancer un traitement
-```bash
-curl -X POST http://localhost:3001/api/meta/batch-postal-codes-reach-estimate-v2 \
-  -H "Content-Type: application/json" \
-  -d '{"adAccountId":"act_811288492239748","postalCodes":["75001","75002"],"countryCode":"FR","targetingSpec":{},"projectId":PROJECT_ID}'
-```
-
-### 4. Vérifier les résultats
-```bash
-curl -X GET http://localhost:3001/api/projects/PROJECT_ID/results
-```
-
-## 🔍 Vérification dans Supabase
-
-1. Allez dans **Table Editor** dans votre projet Supabase
-2. Vérifiez que les tables `projects` et `processing_results` sont créées
-3. Vérifiez que les données sont bien insérées
-
-## 🚨 Dépannage
-
-### Problème : "Supabase configuration missing"
-**Solution** : Vérifiez que les variables `SUPABASE_URL` et `SUPABASE_ANON_KEY` sont bien définies dans le fichier `.env`
-
-### Problème : "relation does not exist"
-**Solution** : Exécutez le script SQL pour créer les tables
-
-### Problème : "permission denied"
-**Solution** : Vérifiez que les politiques RLS sont bien créées
-
-### Problème : "invalid API key"
-**Solution** : Vérifiez que la clé anon est correcte dans les paramètres Supabase
-
-## 🎯 Résultat attendu
-
-Après la configuration :
-- ✅ Les projets sont persistants même après redémarrage
-- ✅ Les résultats de traitement sont sauvegardés
-- ✅ L'interface affiche les bonnes statistiques
-- ✅ Plus de "0% de succès" ou "Aucun résultat"
+### Problème de tables
+- Vérifiez que le script SQL a été exécuté correctement
+- Vérifiez les logs dans Supabase
 
 ## 📞 Support
 
-Si vous rencontrez des problèmes :
-1. Vérifiez les logs du backend
-2. Vérifiez la console du navigateur
-3. Vérifiez les tables dans Supabase
-4. Contactez-moi avec les erreurs spécifiques
+En cas de problème :
+1. Vérifiez les logs dans Vercel
+2. Vérifiez les logs dans Supabase
+3. Testez la connexion à la base de données
+4. Vérifiez les variables d'environnement
