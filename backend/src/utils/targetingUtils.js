@@ -13,6 +13,13 @@ function convertInterestGroupsToMetaFormat(interestGroups) {
   }
 
   console.log('🔄 Converting interest groups:', JSON.stringify(interestGroups, null, 2));
+  console.log('🔄 Interest groups structure:', interestGroups.map((group, index) => ({
+    index,
+    name: group.name,
+    operator: group.operator,
+    interestsCount: group.interests.length,
+    interests: group.interests.map(i => i.name)
+  })));
 
   // If only one group, all interests within the group are OR
   if (interestGroups.length === 1) {
@@ -40,21 +47,29 @@ function convertInterestGroupsToMetaFormat(interestGroups) {
       name: interest.name
     }));
     
-    if (index === 0 || group.operator === 'AND') {
-      // First group or AND operator - create new flexible_spec entry
+    if (index === 0) {
+      // First group - always create new entry
       flexibleSpecs.push({
         interests: currentGroupInterests
       });
-    } else if (group.operator === 'OR') {
-      // OR operator - merge with the last flexible_spec entry
-      if (flexibleSpecs.length > 0) {
-        const lastEntry = flexibleSpecs[flexibleSpecs.length - 1];
-        lastEntry.interests = [...lastEntry.interests, ...currentGroupInterests];
-      } else {
-        // Fallback - create new entry
+    } else {
+      // Check the operator of the current group
+      if (group.operator === 'AND') {
+        // AND operator - create new flexible_spec entry (separate group)
         flexibleSpecs.push({
           interests: currentGroupInterests
         });
+      } else if (group.operator === 'OR') {
+        // OR operator - merge with the last flexible_spec entry
+        if (flexibleSpecs.length > 0) {
+          const lastEntry = flexibleSpecs[flexibleSpecs.length - 1];
+          lastEntry.interests = [...lastEntry.interests, ...currentGroupInterests];
+        } else {
+          // Fallback - create new entry
+          flexibleSpecs.push({
+            interests: currentGroupInterests
+          });
+        }
       }
     }
   });

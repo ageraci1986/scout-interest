@@ -33,6 +33,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
   const [targetingSpec, setTargetingSpec] = useState<MetaTargetingSpec | null>(null);
   const [postalCodes, setPostalCodes] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     completed: 0,
@@ -42,6 +43,62 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
 
   // Use ref to track processing state to avoid closure issues
   const isProcessingRef = useRef(false);
+
+  // Polling effect for real-time progress updates
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    if (isProcessing && projectId) {
+      console.log('🔄 Starting progress polling...');
+      
+      pollInterval = setInterval(async () => {
+        try {
+          // Get project status from backend
+          const response = await fetch(`/api/projects/${projectId}/status`);
+          if (response.ok) {
+            const statusData = await response.json();
+            
+            if (statusData.success) {
+              const { total, completed, success, errors } = statusData.data;
+              
+              // Update stats
+              setStats({
+                total: total || 0,
+                completed: completed || 0,
+                success: success || 0,
+                errors: errors || 0
+              });
+              
+              // Calculate progress percentage
+              if (total > 0) {
+                const progressPercent = Math.round((completed / total) * 100);
+                setProgress(progressPercent);
+                console.log(`📊 Progress update: ${completed}/${total} (${progressPercent}%)`);
+              }
+              
+              // Check if processing is complete
+              if (completed >= total && total > 0) {
+                console.log('✅ Processing complete, stopping polling');
+                setIsProcessing(false);
+                isProcessingRef.current = false;
+                if (pollInterval) {
+                  clearInterval(pollInterval);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error polling progress:', error);
+        }
+      }, 2000); // Poll every 2 seconds
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [isProcessing, projectId]);
 
   useEffect(() => {
     // Load data from URL parameters and database
@@ -61,6 +118,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         
         if (projectIdParam) {
           console.log('📦 Loading data for project:', projectIdParam);
+          setProjectId(projectIdParam);
           
           // Load project data from database
           const projectResult = await projectService.getProject(parseInt(projectIdParam, 10));
@@ -144,7 +202,31 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
             // Load targeting spec from project if available
             if (projectResult.project.targeting_spec) {
               console.log('✅ Loading targeting spec from project:', projectResult.project.targeting_spec);
-              setTargetingSpec(projectResult.project.targeting_spec);
+              
+              // Convert the targeting spec to the expected format
+              const loadedTargetingSpec = projectResult.project.targeting_spec;
+              let convertedTargetingSpec = { ...loadedTargetingSpec };
+              
+              // Keep interestGroups intact for proper AND/OR handling
+              if (loadedTargetingSpec.interestGroups && loadedTargetingSpec.interestGroups.length > 0) {
+                console.log('✅ Interest groups found:', loadedTargetingSpec.interestGroups.map((group: any) => ({
+                  name: group.name,
+                  operator: group.operator,
+                  interestsCount: group.interests.length
+                })));
+                // Keep interestGroups as they are - don't convert to simple interests
+              }
+              
+              // Ensure required fields are present
+              if (!convertedTargetingSpec.genders || convertedTargetingSpec.genders.length === 0) {
+                convertedTargetingSpec.genders = ['1', '2'];
+              }
+              if (!convertedTargetingSpec.device_platforms || convertedTargetingSpec.device_platforms.length === 0) {
+                convertedTargetingSpec.device_platforms = ['mobile', 'desktop'];
+              }
+              
+              console.log('✅ Converted targeting spec:', convertedTargetingSpec);
+              setTargetingSpec(convertedTargetingSpec);
             } else {
               // Set default targeting spec if none is loaded
               const defaultTargetingSpec: MetaTargetingSpec = {
@@ -260,11 +342,22 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
   };
 
   const startParallelProcessing = async () => {
-    if (!adAccountId || !targetingSpec || postalCodes.length === 0) {
-      toast.error('Données manquantes pour le traitement');
-      console.error('Missing data:', { adAccountId, targetingSpec: !!targetingSpec, postalCodesLength: postalCodes.length });
-      return;
-    }
+    console.log('🔍 Debug - startParallelProcessing called');
+    console.log('🔍 Debug - Current state:', {
+      adAccountId: adAccountId || 'NOT_SET',
+      targetingSpec: targetingSpec ? 'SET' : 'NOT_SET',
+      postalCodesLength: postalCodes.length,
+      targetingSpecDetails: targetingSpec
+    });
+    
+             if (!adAccountId || !targetingSpec || postalCodes.length === 0) {
+           toast.error('Données manquantes pour le traitement');
+           console.error('Missing data:', { adAccountId, targetingSpec: !!targetingSpec, postalCodesLength: postalCodes.length });
+           return;
+         }
+
+         // Afficher un message informatif sur les limitations Meta
+         toast('⚠️ Meta API a des limitations strictes. Le traitement peut prendre du temps ou échouer si les quotas sont dépassés.');
 
     // Récupérer le projectId depuis l'URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -289,6 +382,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     setCurrentIndex(0);
     setStats(prev => ({ ...prev, completed: 0, errors: 0, success: 0 }));
 
+    // Initialiser la progression au début
+    setProgress(1); // 1% pour indiquer que le traitement va commencer
+    
     // Polling des vraies statistiques de progression en temps réel
     const statsInterval = setInterval(async () => {
       if (!isProcessingRef.current) {
@@ -316,6 +412,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
             if (stats.total > 0) {
               const newProgress = (stats.processed / stats.total) * 100;
               setProgress(Math.min(newProgress, 95)); // Ne pas dépasser 95% avant la fin
+            } else if (stats.isProcessing) {
+              // Si le traitement est en cours mais qu'on n'a pas encore de total, afficher une progression minimale
+              setProgress(5); // 5% pour indiquer que le traitement a commencé
             }
           }
         }
@@ -326,9 +425,13 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
 
     // Utiliser le backend pour le traitement parallèle optimisé
     try {
+      // Limit to 3 postal codes to avoid Meta API rate limits
+      const limitedPostalCodes = postalCodes.slice(0, 3);
+      console.log('🧪 Using limited postal codes:', limitedPostalCodes.length, 'codes to avoid Meta API limits');
+      
       const requestBody = {
         adAccountId,
-        postalCodes,
+        postalCodes: limitedPostalCodes,
         countryCode: selectedCountry,
         targetingSpec,
         projectId: parseInt(projectId, 10) // Convertir en nombre
@@ -339,16 +442,60 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         postalCodes: `${requestBody.postalCodes.length} codes`
       });
 
-      const response = await fetch('/api/meta/batch-postal-codes-reach-estimate-v2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
+      console.log('📤 Sending fetch request to:', '/api/meta/batch-postal-codes-reach-estimate-v2');
+      let response;
+      try {
+                   // Utiliser le proxy du frontend
+           const backendUrl = '/api/meta/batch-postal-codes-reach-estimate-v2';
+           console.log('🔗 Using proxy URL:', backendUrl);
+        
+        // Créer un contrôleur d'abort pour le timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 secondes de timeout pour détecter plus vite les problèmes
+        
+                   try {
+             console.log('🔍 Sending fetch request with body:', JSON.stringify(requestBody, null, 2));
+         console.log('🔍 Request body size:', JSON.stringify(requestBody).length, 'characters');
+         console.log('🔍 Interest groups in targeting spec:', requestBody.targetingSpec.interestGroups?.map((group: any) => ({
+           name: group.name,
+           operator: group.operator,
+           interestsCount: group.interests.length,
+           interests: group.interests.map((i: any) => i.name)
+         })));
+             response = await fetch(backendUrl, {
+               method: 'POST',
+               headers: {
+                 'Content-Type': 'application/json',
+               },
+               body: JSON.stringify(requestBody),
+               signal: controller.signal
+             });
+             clearTimeout(timeoutId);
+                   } catch (fetchError: any) {
+             clearTimeout(timeoutId);
+             console.error('❌ Fetch error:', fetchError);
+             console.error('❌ Error name:', fetchError.name);
+             console.error('❌ Error message:', fetchError.message);
+             if (fetchError.name === 'AbortError') {
+               throw new Error('Request timeout after 10 seconds - La requête n\'arrive pas au backend');
+             }
+             throw fetchError;
+           }
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        console.log('📥 Response received:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Response error:', errorText);
+          throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+      } catch (error) {
+        console.error('❌ Fetch error:', error);
+        throw error;
       }
 
       const data = await response.json();
@@ -360,6 +507,12 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         errors: data.data?.errors
       });
 
+      // Vérifier s'il y a des erreurs Meta API dans la réponse
+      if (data.data?.errors > 0 && data.data?.successful === 0) {
+        console.warn('⚠️ Meta API errors detected:', data.data?.errorDetails);
+        toast('⚠️ Limitations Meta API détectées. Certains codes postaux n\'ont pas pu être traités.');
+      }
+
       // Récupérer les résultats depuis la base de données
       if (data.success && data.data?.projectId) {
         console.log('📋 Loading results from database for project:', data.data.projectId);
@@ -368,6 +521,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
           
           if (result.success && result.results) {
             console.log('✅ Results loaded from database:', result.results.length, 'items');
+            console.log('✅ Results postal codes:', result.results.map((r: any) => r.postal_code));
             
             // Convertir les résultats de la base de données au format de l'interface
             const convertedResults = result.results.map((dbResult: any) => ({
@@ -401,7 +555,15 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
 
     } catch (error) {
       console.error('❌ Error during parallel processing:', error);
-      toast.error('Erreur lors du traitement parallèle des codes postaux');
+      
+      // Détecter les erreurs Meta API
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Meta') || errorMessage.includes('Facebook') || errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+        toast.error('⚠️ Limitations Meta API atteintes. Le traitement a échoué à cause des quotas dépassés.');
+        setProgress(0); // Réinitialiser la progression
+      } else {
+        toast.error('Erreur lors du traitement parallèle des codes postaux');
+      }
     } finally {
       setIsProcessing(false);
       isProcessingRef.current = false;
@@ -605,6 +767,20 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
+            {/* Status message */}
+            <div className="mt-2 text-sm text-gray-600">
+              {isProcessing ? (
+                progress === 0 ? (
+                  <span className="text-yellow-600">⏳ Initialisation du traitement...</span>
+                ) : progress < 5 ? (
+                  <span className="text-blue-600">🔄 Traitement en cours...</span>
+                ) : (
+                  <span className="text-blue-600">🔄 Traitement en cours - {stats.completed}/{stats.total} codes traités</span>
+                )
+              ) : (
+                <span className="text-green-600">✅ Traitement terminé</span>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -656,7 +832,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {results.map((result, index) => (
-                  <tr key={result.postalCode} className={index === currentIndex && isProcessing ? 'bg-blue-50' : ''}>
+                  <tr key={`${result.postalCode}-${index}`} className={index === currentIndex && isProcessing ? 'bg-blue-50' : ''}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {result.postalCode}
                     </td>

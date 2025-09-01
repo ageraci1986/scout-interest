@@ -207,14 +207,55 @@ class ProjectService {
       const project = await this.db.get('SELECT * FROM projects WHERE id = $1', [projectId]);
       
       if (project) {
-        // Parser le targeting_spec JSON
-        project.targeting_spec = project.targeting_spec ? JSON.parse(project.targeting_spec) : null;
+        // Parser le targeting_spec JSON seulement s'il est une chaîne
+        if (project.targeting_spec && typeof project.targeting_spec === 'string') {
+          try {
+            project.targeting_spec = JSON.parse(project.targeting_spec);
+          } catch (parseError) {
+            console.warn('⚠️ Could not parse targeting_spec JSON:', parseError);
+            project.targeting_spec = null;
+          }
+        }
       }
       
       console.log(`✅ Updated targeting spec for project ${projectId}`);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error updating project targeting spec:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get project processing status
+  async getProjectStatus(projectId) {
+    try {
+      // Get project info
+      const project = await this.db.get('SELECT * FROM projects WHERE id = $1', [projectId]);
+      
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      // Get processing results count
+      const results = await this.db.all('SELECT * FROM processing_results WHERE project_id = $1', [projectId]);
+      
+      const total = results.length;
+      const completed = results.filter(r => r.success).length;
+      const errors = results.filter(r => !r.success).length;
+      const success = completed;
+
+      const status = {
+        total,
+        completed,
+        success,
+        errors,
+        isProcessing: total > 0 && completed < total
+      };
+
+      console.log(`📊 Project ${projectId} status:`, status);
+      return { success: true, status };
+    } catch (error) {
+      console.error('❌ Error getting project status:', error);
       return { success: false, error: error.message };
     }
   }

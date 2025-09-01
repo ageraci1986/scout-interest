@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+
+console.log('📁 Meta routes loaded at:', new Date().toISOString());
 const metaApi = require('../config/meta-api');
 const db = require('../config/database');
 const ParallelProcessor = require('../services/parallelProcessor');
@@ -201,6 +203,11 @@ router.post('/postal-code-reach-estimate', async (req, res) => {
 
 // Route pour le traitement par lots avec gestion robuste des projets
 router.post('/batch-postal-codes-reach-estimate-v2', async (req, res) => {
+  console.log('🚀 BATCH ROUTE CALLED - Request received at:', new Date().toISOString());
+  console.log('🚀 Request headers:', req.headers);
+  console.log('🚀 Request body keys:', Object.keys(req.body || {}));
+  console.log('🚀 ROUTE DEFINITION UPDATED - This should appear if the file is reloaded');
+  
   try {
     const { adAccountId, postalCodes, targetingSpec = {}, countryCode = 'US', projectId } = req.body;
     

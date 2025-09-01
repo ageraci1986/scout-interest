@@ -253,5 +253,32 @@ router.patch('/:projectId', async (req, res) => {
   }
 });
 
+// Get project processing status
+router.get('/:projectId/status', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    const result = await projectService.getProjectStatus(projectId);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.status
+    });
+  } catch (error) {
+    console.error('Error getting project status:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
 
