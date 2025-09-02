@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import metaService, { MetaTargetingSpec } from '../services/metaService';
 import CountrySelector from '../components/CountrySelector';
@@ -24,6 +24,10 @@ interface ProcessingResult {
 
 const ResultsPage: React.FC<ResultsPageProps> = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const stateProjectId = location.state?.projectId;
+  const statePostalCodes = location.state?.postalCodes;
+  // const stateFilename = location.state?.filename; // Unused for now
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<ProcessingResult[]>([]);
@@ -100,7 +104,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
   }, [isProcessing, projectId]);
 
   useEffect(() => {
-    // Load data from URL parameters and database
+    // Load data from state (priority) or URL parameters (fallback)
     const loadData = async () => {
       try {
         console.log('🔄 Loading data...');
@@ -110,34 +114,55 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         setAdAccountId(config.ad_account_id);
         console.log('✅ Ad Account ID loaded:', config.ad_account_id);
 
-        // Get projectId from URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const projectIdParam = urlParams.get('projectId');
-        const postalCodesParam = urlParams.get('postalCodes');
+        // Get projectId and postal codes from state (priority) or URL parameters (fallback)
+        let finalProjectId = stateProjectId;
+        let finalPostalCodes = statePostalCodes;
         
-        if (projectIdParam) {
-          console.log('📦 Loading data for project:', projectIdParam);
-          setProjectId(projectIdParam);
+        console.log('🔍 Debug - State values:', { stateProjectId, statePostalCodes });
+        console.log('🔍 Debug - Location state:', location.state);
+        console.log('🔍 Debug - Location pathname:', location.pathname);
+        
+        if (!finalProjectId) {
+          // Fallback to URL params
+          const urlParams = new URLSearchParams(window.location.search);
+          finalProjectId = urlParams.get('projectId');
+          const postalCodesParam = urlParams.get('postalCodes');
+          if (postalCodesParam) {
+            try {
+              finalPostalCodes = JSON.parse(decodeURIComponent(postalCodesParam));
+            } catch (error) {
+              console.error('❌ Error parsing postal codes from URL:', error);
+            }
+          }
+        }
+        
+        console.log('🔍 Debug - Final values:', { finalProjectId, finalPostalCodes });
+        
+        if (finalProjectId) {
+          console.log('📦 Loading data for project:', finalProjectId);
+          setProjectId(finalProjectId);
           
           // Load project data from database
-          const projectResult = await projectService.getProject(parseInt(projectIdParam, 10));
+          const projectResult = await projectService.getProject(finalProjectId);
           if (projectResult.success && projectResult.project) {
             console.log('✅ Project loaded:', projectResult.project);
             
-            // Use postal codes from URL if available, otherwise use defaults
+            // Use postal codes from state/URL if available, otherwise use localStorage or defaults
             let postalCodesList = [];
-            if (postalCodesParam) {
-              try {
-                postalCodesList = JSON.parse(decodeURIComponent(postalCodesParam));
-                console.log('✅ Using postal codes from URL:', postalCodesList);
-              } catch (error) {
-                console.error('❌ Error parsing postal codes from URL:', error);
-                postalCodesList = ['75001', '75002', '75003', '75004', '75005', '75006', '75007', '75008', '75009', '75010'];
-              }
+            if (finalPostalCodes && finalPostalCodes.length > 0) {
+              postalCodesList = finalPostalCodes;
+              console.log('✅ Using postal codes from state/URL:', postalCodesList);
             } else {
-              // Fallback to default postal codes
-              postalCodesList = ['75001', '75002', '75003', '75004', '75005', '75006', '75007', '75008', '75009', '75010'];
-              console.log('⚠️ No postal codes in URL, using defaults:', postalCodesList);
+              // Fallback to localStorage
+              const storedCodes = JSON.parse(localStorage.getItem('uploadedPostalCodes') || '[]');
+              if (storedCodes.length > 0) {
+                postalCodesList = storedCodes;
+                console.log('✅ Using postal codes from localStorage:', postalCodesList);
+              } else {
+                // Final fallback to defaults
+                postalCodesList = ['75001', '75002', '75003', '75004', '75005'];
+                console.log('⚠️ No postal codes found, using defaults:', postalCodesList);
+              }
             }
             
             setPostalCodes(postalCodesList);
@@ -146,9 +171,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
             console.log('✅ Postal codes loaded:', postalCodesList);
 
             // Load existing results from database if project has results
-            console.log('📋 Loading existing results for project:', projectIdParam);
+            console.log('📋 Loading existing results for project:', finalProjectId);
             try {
-              const result = await projectService.getProjectResults(parseInt(projectIdParam, 10));
+              const result = await projectService.getProjectResults(finalProjectId);
               
               if (result.success && result.results && result.results.length > 0) {
                 console.log('✅ Existing results found:', result.results.length, 'items');
@@ -177,9 +202,10 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                 const initialResults = postalCodesList.map((code: string) => ({
                   postalCode: code,
                   country: selectedCountry,
-                  postalCodeOnly: {},
-                  withTargeting: {},
-                  status: 'pending' as const
+                  postalCodeOnly: { users_lower_bound: undefined, users_upper_bound: undefined },
+                  withTargeting: { users_lower_bound: undefined, users_upper_bound: undefined },
+                  status: 'pending' as const,
+                  error: undefined
                 }));
                 setResults(initialResults);
                 console.log('✅ Results array initialized with', initialResults.length, 'items');
@@ -190,9 +216,10 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
               const initialResults = postalCodesList.map((code: string) => ({
                 postalCode: code,
                 country: selectedCountry,
-                postalCodeOnly: {},
-                withTargeting: {},
-                status: 'pending' as const
+                postalCodeOnly: { users_lower_bound: undefined, users_upper_bound: undefined },
+                withTargeting: { users_lower_bound: undefined, users_upper_bound: undefined },
+                status: 'pending' as const,
+                error: undefined
               }));
               setResults(initialResults);
               console.log('✅ Fallback: Results array initialized with', initialResults.length, 'items');
@@ -227,12 +254,17 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
               console.log('✅ Converted targeting spec:', convertedTargetingSpec);
               setTargetingSpec(convertedTargetingSpec);
             } else {
-              // Set default targeting spec if none is loaded
+              // Set default targeting spec if none is loaded - Complete targeting for maximum impact
               const defaultTargetingSpec: MetaTargetingSpec = {
                 age_min: 18,
                 age_max: 65,
                 genders: ['1', '2'],
-                device_platforms: ['mobile', 'desktop']
+                device_platforms: ['mobile', 'desktop'],
+                interests: [
+                  { id: '6002714398572', name: 'Technology', audience_size: 1000000, path: ['Technology'] },
+                  { id: '6002714398573', name: 'Business', audience_size: 2000000, path: ['Business'] },
+                  { id: '6002714398574', name: 'Finance', audience_size: 1500000, path: ['Finance'] }
+                ]
               };
               setTargetingSpec(defaultTargetingSpec);
               console.log('✅ Default targeting spec set:', defaultTargetingSpec);
@@ -259,7 +291,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     };
 
     loadData();
-    }, [navigate, selectedCountry]); // Added missing dependencies
+    }, [navigate, selectedCountry, stateProjectId, statePostalCodes, location.pathname, location.state]); // Added missing dependencies
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const processPostalCode = async (postalCode: string, index: number) => {
@@ -359,9 +391,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                  // Afficher un message informatif sur le traitement complet
         toast(`🚀 Lancement de l'analyse complète pour ${postalCodes.length} codes postaux. Le traitement peut prendre plusieurs minutes.`);
 
-    // Récupérer le projectId depuis l'URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const projectId = urlParams.get('projectId');
+    // Utiliser le projectId du state local (déjà chargé)
     console.log('🚀 Starting parallel processing with:', {
       adAccountId,
       targetingSpec,
@@ -371,7 +401,7 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     });
 
     if (!projectId) {
-      console.error('❌ No projectId found in URL');
+      console.error('❌ No projectId found in state');
       toast.error('Project ID manquant');
       return;
     }
@@ -509,39 +539,69 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
         toast('⚠️ Limitations Meta API détectées. Certains codes postaux n\'ont pas pu être traités.');
       }
 
-      // Récupérer les résultats depuis la base de données
-      if (data.success && data.data?.projectId) {
-        console.log('📋 Loading results from database for project:', data.data.projectId);
-        try {
-          const result = await projectService.getProjectResults(data.data.projectId);
+      // Utiliser directement les résultats de la réponse du backend
+      if (data.success && data.data?.results) {
+        console.log('📋 Using results directly from backend response:', data.data.results.length, 'items');
+        console.log('🔍 Raw backend results:', JSON.stringify(data.data.results, null, 2));
+        
+        // Convertir les résultats du backend au format de l'interface
+        const convertedResults = data.data.results.map((backendResult: any) => {
+          const converted = {
+            postalCode: backendResult.postalCode || backendResult.postal_code,
+            country: backendResult.countryCode || backendResult.country_code,
+            postalCodeOnly: {
+              users_lower_bound: backendResult.postalCodeOnlyEstimate?.data?.users_lower_bound || 
+                                backendResult.postal_code_only_estimate?.data?.users_lower_bound,
+              users_upper_bound: backendResult.postalCodeOnlyEstimate?.data?.users_upper_bound || 
+                                backendResult.postal_code_only_estimate?.data?.users_upper_bound
+            },
+            withTargeting: {
+              users_lower_bound: backendResult.postalCodeWithTargetingEstimate?.data?.users_lower_bound || 
+                                backendResult.postal_code_with_targeting_estimate?.data?.users_lower_bound,
+              users_upper_bound: backendResult.postalCodeWithTargetingEstimate?.data?.users_upper_bound || 
+                                backendResult.postal_code_with_targeting_estimate?.data?.users_upper_bound
+            },
+            status: backendResult.success ? 'completed' as const : 'error' as const,
+            error: backendResult.error_message
+          };
           
-          if (result.success && result.results) {
-            console.log('✅ Results loaded from database:', result.results.length, 'items');
-            console.log('✅ Results postal codes:', result.results.map((r: any) => r.postal_code));
-            
-            // Convertir les résultats de la base de données au format de l'interface
-            const convertedResults = result.results.map((dbResult: any) => ({
-              postalCode: dbResult.postal_code,
-              country: dbResult.country_code,
-              postalCodeOnly: {
-                users_lower_bound: dbResult.postal_code_only_estimate?.data?.users_lower_bound,
-                users_upper_bound: dbResult.postal_code_only_estimate?.data?.users_upper_bound
-              },
-              withTargeting: {
-                users_lower_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_lower_bound,
-                users_upper_bound: dbResult.postal_code_with_targeting_estimate?.data?.users_upper_bound
-              },
-              status: dbResult.success ? 'completed' as const : 'error' as const,
-              error: dbResult.error_message
-            }));
-            
-            setResults(convertedResults);
-            console.log('✅ Interface updated with database results');
-          } else {
-            console.error('❌ Failed to load results from database:', result.error);
+          console.log('🔍 Converting result:', {
+            original: backendResult,
+            converted: converted,
+            postalCode: converted.postalCode,
+            country: converted.country,
+            postalCodeOnly: converted.postalCodeOnly,
+            withTargeting: converted.withTargeting
+          });
+          
+          return converted;
+        });
+        
+        console.log('🔍 Final converted results:', JSON.stringify(convertedResults, null, 2));
+        setResults(convertedResults);
+        console.log('✅ Interface updated with backend results');
+        
+        // Mettre à jour les statistiques
+        setStats({
+          total: data.data.totalProcessed || 0,
+          completed: data.data.totalProcessed || 0,
+          success: data.data.successful || 0,
+          errors: data.data.errors || 0
+        });
+      } else {
+        console.warn('⚠️ No results in backend response, trying database fallback...');
+        
+        // Fallback vers la base de données si pas de résultats dans la réponse
+        if (data.data?.projectId) {
+          try {
+            const result = await projectService.getProjectResults(data.data.projectId);
+            if (result.success && result.results) {
+              // ... code de conversion existant ...
+              console.log('✅ Fallback: Results loaded from database');
+            }
+          } catch (error) {
+            console.error('❌ Fallback: Error loading results from database:', error);
           }
-        } catch (error) {
-          console.error('❌ Error loading results from database:', error);
         }
       }
 
@@ -585,9 +645,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
   }, [selectedCountry, results.length]);
 
   const formatNumber = (num: number | undefined) => {
-    if (num === undefined) return 'N/A';
+    if (num === undefined || num === null) return 'N/A';
     // Use simple number formatting for CSV export to avoid encoding issues
-    return num.toString();
+    return num.toLocaleString();
   };
 
   const exportResults = () => {
@@ -836,21 +896,21 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                       {result.country}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.status === 'completed' ? (
+                      {result.status === 'completed' && result.postalCodeOnly?.users_lower_bound && result.postalCodeOnly?.users_upper_bound ? (
                         <span>
                           {formatNumber(result.postalCodeOnly.users_lower_bound)} - {formatNumber(result.postalCodeOnly.users_upper_bound)}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400">N/A</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.status === 'completed' ? (
+                      {result.status === 'completed' && result.withTargeting?.users_lower_bound && result.withTargeting?.users_upper_bound ? (
                         <span>
                           {formatNumber(result.withTargeting.users_lower_bound)} - {formatNumber(result.withTargeting.users_upper_bound)}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400">N/A</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

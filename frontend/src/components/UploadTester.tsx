@@ -65,7 +65,7 @@ const UploadTester: React.FC = () => {
       addResult(`📁 Created test file: ${testFile.name} (${testFile.size} bytes)`);
       
       const result = await uploadService.uploadFile(testFile);
-      addResult(`✅ Upload successful: ${result.data.statistics.total} codes detected`);
+      addResult(`✅ Upload successful: ${result.summary.total} codes detected`);
       return true;
     } catch (error: any) {
       addResult(`❌ File upload failed: ${error.message || error}`);

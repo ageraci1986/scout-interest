@@ -128,3 +128,4 @@ dist/
 *.tgz
 *.tar.gz
 .vercel
+.env*.local

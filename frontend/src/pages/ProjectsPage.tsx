@@ -59,7 +59,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
     }
   };
 
-  const deleteProject = async (projectId: number) => {
+  const deleteProject = async (projectId: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.')) {
       return;
     }

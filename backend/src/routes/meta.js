@@ -268,17 +268,46 @@ router.post('/batch-postal-codes-reach-estimate-v2', async (req, res) => {
       });
     }
 
-    // Traitement avec le projectId validé
-    const processor = new ParallelProcessor();
+    // Traitement parallèle optimisé avec ParallelProcessorFixed
+    console.log('🔍 Starting optimized parallel batch processing with:', {
+      postalCodesCount: postalCodes.length,
+      postalCodes: postalCodes,
+      countryCode,
+      adAccountId,
+      targetingSpec: JSON.stringify(targetingSpec, null, 2)
+    });
+    
+    // Vérification des variables d'environnement
+    console.log('🔧 Environment check:', {
+      hasMetaToken: !!process.env.META_ACCESS_TOKEN,
+      tokenLength: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.length : 0,
+      metaEnvironment: process.env.META_API_ENVIRONMENT || 'production'
+    });
+    
+    // Log détaillé du targeting spec
+    if (targetingSpec && targetingSpec.interests) {
+      console.log('🎯 Interests in targeting spec:', targetingSpec.interests);
+      console.log('🎯 Interest count:', targetingSpec.interests.length);
+    }
+    
+    if (targetingSpec && targetingSpec.interestGroups) {
+      console.log('🎯 Interest groups in targeting spec:', targetingSpec.interestGroups);
+      console.log('🎯 Interest groups count:', targetingSpec.interestGroups.length);
+    }
+    
+    // Utiliser le ParallelProcessorFixed pour un traitement optimisé
+    const ParallelProcessorFixed = require('../services/parallelProcessorFixed');
+    const processor = new ParallelProcessorFixed();
+    
     const result = await processor.processBatch(
       postalCodes,
       countryCode,
       adAccountId,
       targetingSpec,
-      10
+      10 // Batch size optimisé
     );
 
-    console.log(`✅ Batch processing completed: ${result.successful} successful, ${result.errors} errors`);
+    console.log(`✅ Optimized parallel batch processing completed: ${result.successful} successful, ${result.errors} errors`);
 
     // Sauvegarder les résultats avec le projectId validé
     if (result.results && result.results.length > 0) {
@@ -308,6 +337,11 @@ router.post('/batch-postal-codes-reach-estimate-v2', async (req, res) => {
         projectId: validProjectId
       }
     });
+    
+    // Log des erreurs détaillées
+    if (result.errors > 0 && result.errorDetails) {
+      console.log('❌ Error details:', JSON.stringify(result.errorDetails, null, 2));
+    }
   } catch (error) {
     console.error('Error in batch postal codes reach estimate:', error);
     res.status(500).json({
@@ -791,6 +825,68 @@ router.get('/project/:projectId/postal-codes', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+});
+
+
+
+// Debug endpoint pour tester les reach estimates
+router.post('/debug-reach-estimate', async (req, res) => {
+  try {
+    const { adAccountId, targetingSpec } = req.body;
+    
+    console.log('🔍 Debug reach estimate called with:', {
+      adAccountId,
+      targetingSpec: JSON.stringify(targetingSpec, null, 2)
+    });
+    
+    // Vérification des variables d'environnement
+    console.log('🔧 Environment check:', {
+      hasMetaToken: !!process.env.META_ACCESS_TOKEN,
+      tokenLength: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.length : 0,
+      metaEnvironment: process.env.META_API_ENVIRONMENT || 'production'
+    });
+    
+    // Test direct de l'API Meta
+    const axios = require('axios');
+    const url = `https://graph.facebook.com/v23.0/${adAccountId}/reachestimate`;
+
+    const params = {
+      targeting_spec: JSON.stringify(targetingSpec),
+      optimization_goal: 'REACH',
+      access_token: process.env.META_ACCESS_TOKEN
+    };
+    
+    console.log('🚀 Calling Meta API with:', {
+      url,
+      params: JSON.stringify(params, null, 2)
+    });
+
+    const response = await axios.get(url, { params });
+    
+    console.log('✅ Meta API response:', response.data);
+    
+    res.json({
+      success: true,
+      data: response.data
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug reach estimate error:', error.message);
+    
+    if (error.response) {
+      console.error('🔍 Error response:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error.response?.data || error.message
     });
   }
 });

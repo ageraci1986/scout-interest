@@ -1,12 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const API_BASE_URL = '/api';
 
 console.log('🔍 ProjectService - API_BASE_URL:', API_BASE_URL);
 console.log('🔍 ProjectService - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 
 export interface Project {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   user_id: string;
@@ -20,8 +20,8 @@ export interface Project {
 }
 
 export interface ProcessingResult {
-  id: number;
-  project_id: number;
+  id: string;
+  project_id: string;
   postal_code: string;
   country_code: string;
   zip_data?: any;
@@ -51,7 +51,7 @@ class ProjectService {
     try {
       console.log('📋 Creating project with URL:', `${API_BASE_URL}/projects`);
       const response = await axios.post(`${API_BASE_URL}/projects`, projectData);
-      return { success: true, project: response.data.data.project };
+      return { success: true, project: response.data.data?.project || response.data.project };
     } catch (error: any) {
       console.error('❌ Error creating project:', error);
       console.error('❌ Request URL:', `${API_BASE_URL}/projects`);
@@ -64,11 +64,11 @@ class ProjectService {
   }
 
   // Récupérer un projet par ID
-  async getProject(projectId: number): Promise<{ success: boolean; project?: Project; error?: string }> {
+  async getProject(projectId: string): Promise<{ success: boolean; project?: Project; error?: string }> {
     try {
       console.log('📋 Getting project with URL:', `${API_BASE_URL}/projects/${projectId}`);
       const response = await axios.get(`${API_BASE_URL}/projects/${projectId}`);
-      return { success: true, project: response.data.data.project };
+      return { success: true, project: response.data.data?.project || response.data.project };
     } catch (error: any) {
       console.error('❌ Error getting project:', error);
       console.error('❌ Request URL:', `${API_BASE_URL}/projects/${projectId}`);
@@ -80,22 +80,36 @@ class ProjectService {
     }
   }
 
-  // Récupérer tous les projets d'un utilisateur
-  async getUserProjects(userId: string): Promise<{ success: boolean; projects?: Project[]; error?: string }> {
+  // Récupérer tous les projets d'un utilisateur (corrigé pour anonymous)
+  async getUserProjects(userId: string = 'anonymous'): Promise<{ success: boolean; projects?: Project[]; error?: string }> {
     try {
-      console.log('📋 Getting user projects with URL:', `${API_BASE_URL}/projects/user/${userId}`);
+      const url = `${API_BASE_URL}/projects/user/anonymous`;
+      console.log('📋 Getting user projects with URL:', url);
       console.log('📋 Full request details:', {
-        url: `${API_BASE_URL}/projects/user/${userId}`,
+        url: url,
         method: 'GET',
         userId: userId
       });
       
-      const response = await axios.get(`${API_BASE_URL}/projects/user/${userId}`);
+      const response = await axios.get(url);
       console.log('✅ User projects response:', response.data);
-      return { success: true, projects: response.data.data.projects };
+      
+      // Vérifier la structure de la réponse (API retourne data.data.projects)
+      if (response.data && response.data.success && response.data.data && response.data.data.projects) {
+        return { success: true, projects: response.data.data.projects };
+      } else if (response.data && response.data.success && response.data.projects) {
+        // Fallback pour l'ancienne structure
+        return { success: true, projects: response.data.projects };
+      } else {
+        console.error('❌ Invalid response structure:', response.data);
+        return { 
+          success: false, 
+          error: 'Invalid response structure from API' 
+        };
+      }
     } catch (error: any) {
       console.error('❌ Error getting user projects:', error);
-      console.error('❌ Request URL:', `${API_BASE_URL}/projects/user/${userId}`);
+      console.error('❌ Request URL:', `${API_BASE_URL}/projects/user/anonymous`);
       console.error('❌ Error response:', error.response?.data);
       console.error('❌ Error status:', error.response?.status);
       console.error('❌ Error message:', error.message);
@@ -107,10 +121,10 @@ class ProjectService {
   }
 
   // Mettre à jour un projet
-  async updateProject(projectId: number, updateData: UpdateProjectRequest): Promise<{ success: boolean; project?: Project; error?: string }> {
+  async updateProject(projectId: string, updateData: UpdateProjectRequest): Promise<{ success: boolean; project?: Project; error?: string }> {
     try {
       const response = await axios.put(`${API_BASE_URL}/projects/${projectId}`, updateData);
-      return { success: true, project: response.data.data.project };
+      return { success: true, project: response.data.data?.project || response.data.project };
     } catch (error: any) {
       console.error('Error updating project:', error);
       return { 
@@ -121,7 +135,7 @@ class ProjectService {
   }
 
   // Supprimer un projet
-  async deleteProject(projectId: number): Promise<{ success: boolean; error?: string }> {
+  async deleteProject(projectId: string): Promise<{ success: boolean; error?: string }> {
     try {
       await axios.delete(`${API_BASE_URL}/projects/${projectId}`);
       return { success: true };
@@ -135,10 +149,10 @@ class ProjectService {
   }
 
   // Récupérer les résultats d'un projet
-  async getProjectResults(projectId: number): Promise<{ success: boolean; results?: ProcessingResult[]; error?: string }> {
+  async getProjectResults(projectId: string): Promise<{ success: boolean; results?: ProcessingResult[]; error?: string }> {
     try {
       const response = await axios.get(`${API_BASE_URL}/projects/${projectId}/results`);
-      return { success: true, results: response.data.data.results };
+      return { success: true, results: response.data.results };
     } catch (error: any) {
       console.error('Error getting project results:', error);
       return { 
@@ -149,10 +163,10 @@ class ProjectService {
   }
 
   // Sauvegarder les résultats de traitement
-  async saveProjectResults(projectId: number, results: any[]): Promise<{ success: boolean; savedCount?: number; error?: string }> {
+  async saveProjectResults(projectId: string, results: any[]): Promise<{ success: boolean; savedCount?: number; error?: string }> {
     try {
       const response = await axios.post(`${API_BASE_URL}/projects/${projectId}/results`, { results });
-      return { success: true, savedCount: response.data.data.savedCount };
+      return { success: true, savedCount: response.data.savedCount };
     } catch (error: any) {
       console.error('Error saving project results:', error);
       return { 

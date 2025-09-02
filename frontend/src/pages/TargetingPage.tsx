@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { TargetingSpec, MetaTargetingSpec, AdvancedTargetingSpec, InterestGroup } from '../services/metaService';
 import metaService from '../services/metaService';
 import InterestGroupManager from '../components/InterestGroupManager';
@@ -8,6 +8,9 @@ import toast from 'react-hot-toast';
 
 const TargetingPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const projectId = location.state?.projectId;
+  const filename = location.state?.filename;
   const [interestGroups, setInterestGroups] = useState<InterestGroup[]>([{
     id: 'default-group',
     name: 'Group 1',
@@ -28,6 +31,14 @@ const TargetingPage: React.FC = () => {
   // const uploadedPostalCodesCount = 100; // This would come from the uploaded file
 
   useEffect(() => {
+    // Vérifier que le Project ID est présent
+    if (!projectId) {
+      console.error('❌ No projectId found in state');
+      toast.error('Project ID missing. Please upload a file first.');
+      navigate('/upload');
+      return;
+    }
+
     const fetchAdAccount = async () => {
       try {
         const config = await metaService.getAdAccountConfig();
@@ -39,7 +50,7 @@ const TargetingPage: React.FC = () => {
     };
 
     fetchAdAccount();
-  }, []);
+  }, [projectId, navigate]);
 
   // Convert TargetingSpec to MetaTargetingSpec
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -106,56 +117,51 @@ const TargetingPage: React.FC = () => {
 
     console.log('Advanced targeting spec:', advancedTargetingSpec);
     
-    // Get current project ID and postal codes from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const projectId = urlParams.get('projectId');
-    const postalCodesParam = urlParams.get('postalCodes');
-    
-    // Save targeting spec to project
-    if (projectId) {
-      try {
-        const response = await fetch(`/api/projects/${projectId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            targeting_spec: advancedTargetingSpec
-          })
-        });
-        
-        if (response.ok) {
-          console.log('✅ Targeting spec saved to project');
-          toast.success('Targeting configuration saved!');
-        } else {
-          console.error('❌ Failed to save targeting spec');
-          toast.error('Failed to save targeting configuration');
-        }
-      } catch (error) {
-        console.error('❌ Error saving targeting spec:', error);
-        toast.error('Error saving targeting configuration');
-      }
-    }
-    
-    console.log('🔍 Current URL:', window.location.href);
-    console.log('🔍 URL params:', Object.fromEntries(urlParams.entries()));
-    console.log('🔍 ProjectId from URL:', projectId);
-    console.log('🔍 PostalCodes from URL:', postalCodesParam);
-    
+    // Use Project ID from state (not from URL)
     if (!projectId) {
-      toast.error('Project ID missing');
-      console.error('❌ No projectId found in URL');
+      toast.error('Project ID missing. Please upload a file first.');
+      navigate('/upload');
       return;
     }
     
-    const resultsUrl = postalCodesParam 
-      ? `/results?projectId=${projectId}&postalCodes=${postalCodesParam}`
-      : `/results?projectId=${projectId}`;
+    // Save targeting spec to project
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targeting_spec: advancedTargetingSpec
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Targeting spec saved to project');
+        toast.success('Targeting configuration saved!');
+      } else {
+        console.error('❌ Failed to save targeting spec');
+        toast.error('Failed to save targeting configuration');
+      }
+    } catch (error) {
+      console.error('❌ Error saving targeting spec:', error);
+      toast.error('Error saving targeting configuration');
+    }
     
-    console.log('🚀 Navigating to:', resultsUrl);
+    // Get postal codes from localStorage
+    const postalCodes = JSON.parse(localStorage.getItem('uploadedPostalCodes') || '[]');
+    
+    console.log('🚀 Navigating to results with project ID:', projectId);
+    console.log('📦 Postal codes from storage:', postalCodes);
     
     // Navigate to results page with project ID and postal codes
-    navigate(resultsUrl);
+    navigate('/results', { 
+      state: { 
+        projectId: projectId,
+        postalCodes: postalCodes,
+        filename: filename
+      }
+    });
   };
 
   return (

@@ -9,6 +9,7 @@ import AnalysisPage from './pages/AnalysisPage';
 import ResultsPage from './pages/ResultsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import SettingsPage from './pages/SettingsPage';
+import TestAPI from './components/TestAPI';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/test" element={<TestAPI />} />
           </Routes>
         </Layout>
         <Toaster

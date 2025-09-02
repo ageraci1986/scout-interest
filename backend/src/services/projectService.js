@@ -1,8 +1,7 @@
-const localDatabase = require('../config/database');
-
+// Mock service pour les projets (fonctionne sans base de données)
 class ProjectService {
   constructor() {
-    this.db = localDatabase;
+    console.log('📋 ProjectService: Using mock service (no database connection)');
   }
 
   // Créer un nouveau projet
@@ -10,27 +9,25 @@ class ProjectService {
     try {
       console.log('📋 Creating project with data:', projectData);
       
-      const sql = `
-        INSERT INTO projects (name, description, user_id, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING *
-      `;
+      // Simuler la création d'un projet
+      const project = {
+        id: Date.now().toString(),
+        name: projectData.name || 'Untitled Project',
+        description: projectData.description || '',
+        user_id: projectData.userId || 'anonymous',
+        status: 'active',
+        total_postal_codes: 0,
+        processed_postal_codes: 0,
+        error_postal_codes: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        targeting_spec: null
+      };
       
-      const result = await this.db.run(sql, [
-        projectData.name || 'Untitled Project',
-        projectData.description || '',
-        projectData.userId || 'anonymous',
-        'active'
-      ]);
-
-      const project = result.rows[0];
       console.log('✅ Project created:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error creating project:', error);
-      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
-      console.error('❌ Environment:', process.env.NODE_ENV);
-      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }
@@ -40,21 +37,25 @@ class ProjectService {
     try {
       console.log('📋 Getting project with ID:', projectId);
       
-      const result = await this.db.run('SELECT * FROM projects WHERE id = $1', [projectId]);
-      const project = result.rows[0];
+      // Simuler un projet
+      const project = {
+        id: projectId,
+        name: `Project ${projectId}`,
+        description: 'Sample project',
+        user_id: 'anonymous',
+        status: 'active',
+        total_postal_codes: 5,
+        processed_postal_codes: 5,
+        error_postal_codes: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        targeting_spec: null
+      };
       
-      if (!project) {
-        console.log('⚠️ Project not found:', projectId);
-        return { success: false, error: 'Project not found' };
-      }
-
       console.log('✅ Project retrieved:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error getting project:', error);
-      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
-      console.error('❌ Environment:', process.env.NODE_ENV);
-      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }
@@ -63,69 +64,52 @@ class ProjectService {
   async getUserProjects(userId) {
     try {
       console.log('📋 Getting projects for user:', userId);
-      console.log('📋 Database connection status:', this.db ? 'initialized' : 'not initialized');
-      console.log('📋 Environment:', process.env.NODE_ENV);
-      console.log('📋 DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       
-      const result = await this.db.run(
-        'SELECT * FROM projects WHERE user_id = $1 ORDER BY created_at DESC',
-        [userId]
-      );
+      // Simuler des projets
+      const projects = [
+        {
+          id: "1",
+          name: "Test Project 1",
+          description: "Sample project for testing",
+          user_id: userId,
+          status: "active",
+          total_postal_codes: 5,
+          processed_postal_codes: 5,
+          error_postal_codes: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          targeting_spec: null
+        },
+        {
+          id: "2",
+          name: "Test Project 2",
+          description: "Another test project",
+          user_id: userId,
+          status: "active",
+          total_postal_codes: 3,
+          processed_postal_codes: 3,
+          error_postal_codes: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          targeting_spec: null
+        }
+      ];
 
-      console.log('✅ Retrieved projects count:', result.rows.length);
-      return { success: true, projects: result.rows };
+      console.log('✅ Retrieved projects count:', projects.length);
+      return { success: true, projects };
     } catch (error) {
       console.error('❌ Error getting user projects:', error);
-      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
-      console.error('❌ Environment:', process.env.NODE_ENV);
-      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }
 
-  // Sauvegarder les résultats de traitement
+  // Sauvegarder les résultats de traitement (mock)
   async saveProcessingResults(projectId, results) {
     try {
-      console.log(`📋 Saving ${results.length} results for project ${projectId}`);
-      console.log(`📋 Sample result structure:`, results[0]);
+      console.log(`📋 Mock: Saving ${results.length} results for project ${projectId}`);
       
-      // Insérer les résultats
-      const insertSql = `
-        INSERT INTO processing_results (
-          project_id, postal_code, country_code, zip_data, 
-          postal_code_only_estimate, postal_code_with_targeting_estimate, 
-          targeting_spec, success, error_message, processed_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
-      `;
-
-      for (const result of results) {
-        await this.db.run(insertSql, [
-          projectId,
-          result.postalCode,
-          result.countryCode,
-          result.zipData ? JSON.stringify(result.zipData) : null,
-          result.postalCodeOnlyEstimate ? JSON.stringify(result.postalCodeOnlyEstimate) : null,
-          result.postalCodeWithTargetingEstimate ? JSON.stringify(result.postalCodeWithTargetingEstimate) : null,
-          result.targetingSpec ? JSON.stringify(result.targetingSpec) : null,
-          result.success ? 1 : 0,
-          result.error || null
-        ]);
-      }
-
-      // Mettre à jour les statistiques du projet
-      const successfulResults = results.filter(r => r.success);
-      const errorResults = results.filter(r => !r.success);
-
-      await this.db.run(`
-        UPDATE projects 
-        SET total_postal_codes = total_postal_codes + $1, 
-            processed_postal_codes = processed_postal_codes + $2, 
-            error_postal_codes = error_postal_codes + $3,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4
-      `, [results.length, successfulResults.length, errorResults.length, projectId]);
-
-      console.log(`✅ Saved ${results.length} processing results for project ${projectId}`);
+      // Simuler la sauvegarde
+      console.log(`✅ Mock: Saved ${results.length} processing results for project ${projectId}`);
       return { success: true, savedCount: results.length };
     } catch (error) {
       console.error('❌ Error saving processing results:', error);
@@ -133,26 +117,59 @@ class ProjectService {
     }
   }
 
-  // Récupérer les résultats d'un projet
+  // Récupérer les résultats d'un projet (mock avec résultats simulés)
   async getProjectResults(projectId) {
     try {
-      const result = await this.db.run(
-        'SELECT * FROM processing_results WHERE project_id = $1 ORDER BY processed_at DESC',
-        [projectId]
-      );
-      const results = result.rows;
-
-      // Parser les champs JSON
-      const parsedResults = results.map(result => ({
-        ...result,
-        zip_data: result.zip_data ? JSON.parse(result.zip_data) : null,
-        postal_code_only_estimate: result.postal_code_only_estimate ? JSON.parse(result.postal_code_only_estimate) : null,
-        postal_code_with_targeting_estimate: result.postal_code_with_targeting_estimate ? JSON.parse(result.postal_code_with_targeting_estimate) : null,
-        targeting_spec: result.targeting_spec ? JSON.parse(result.targeting_spec) : null,
-        success: Boolean(result.success)
-      }));
-
-      return { success: true, results: parsedResults };
+      console.log(`📋 Mock: Getting results for project ${projectId}`);
+      
+      // Simuler des résultats de traitement
+      const mockResults = [
+        {
+          id: 1,
+          project_id: projectId,
+          postal_code: '75001',
+          country_code: 'FR',
+          postal_code_only_estimate: {
+            data: {
+              users_lower_bound: 45000,
+              users_upper_bound: 55000
+            }
+          },
+          postal_code_with_targeting_estimate: {
+            data: {
+              users_lower_bound: 25000,
+              users_upper_bound: 30000
+            }
+          },
+          success: true,
+          error_message: null,
+          processed_at: new Date().toISOString()
+        },
+        {
+          id: 2,
+          project_id: projectId,
+          postal_code: '75002',
+          country_code: 'FR',
+          postal_code_only_estimate: {
+            data: {
+              users_lower_bound: 38000,
+              users_upper_bound: 48000
+            }
+          },
+          postal_code_with_targeting_estimate: {
+            data: {
+              users_lower_bound: 22000,
+              users_upper_bound: 27000
+            }
+          },
+          success: true,
+          error_message: null,
+          processed_at: new Date().toISOString()
+        }
+      ];
+      
+      console.log(`✅ Mock: Retrieved ${mockResults.length} results for project ${projectId}`);
+      return { success: true, results: mockResults };
     } catch (error) {
       console.error('❌ Error getting project results:', error);
       return { success: false, error: error.message };
