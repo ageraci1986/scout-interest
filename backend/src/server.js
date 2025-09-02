@@ -45,18 +45,34 @@ const uploadRoutes = require('./routes/upload');
 const projectRoutes = require('./routes/projects');
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    services: {
-      database: 'connected',
-      redis: 'connected',
-      meta_api: 'configured'
-    }
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connection
+    const dbTest = await db.run('SELECT 1 as test');
+    const dbStatus = dbTest ? 'connected' : 'error';
+    
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      database_url: process.env.DATABASE_URL ? 'configured' : 'not configured',
+      services: {
+        database: dbStatus,
+        redis: 'connected',
+        meta_api: 'configured'
+      }
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      environment: process.env.NODE_ENV || 'development',
+      database_url: process.env.DATABASE_URL ? 'configured' : 'not configured'
+    });
+  }
 });
 
 // API routes
@@ -129,6 +145,40 @@ app.get('/api/results/:id', (req, res) => {
       warning: 3,
       error: 2
     }
+  });
+});
+
+// Test endpoint for projects
+app.get('/api/test-projects', async (req, res) => {
+  try {
+    const projectService = require('./services/projectService');
+    const result = await projectService.getUserProjects('anonymous');
+    
+    res.json({
+      success: true,
+      message: 'Projects test endpoint',
+      data: result,
+      environment: process.env.NODE_ENV,
+      database_url: process.env.DATABASE_URL ? 'configured' : 'not configured'
+    });
+  } catch (error) {
+    console.error('Test projects error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      environment: process.env.NODE_ENV,
+      database_url: process.env.DATABASE_URL ? 'configured' : 'not configured'
+    });
+  }
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is working',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 });
 

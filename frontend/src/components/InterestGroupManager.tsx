@@ -55,13 +55,7 @@ const InterestGroupManager: React.FC<InterestGroupManagerProps> = ({
     }
   };
 
-  const getGroupOperatorColor = (operator: 'AND' | 'OR') => {
-    return operator === 'AND' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
-  };
-
-  const getGroupOperatorIcon = (operator: 'AND' | 'OR') => {
-    return operator === 'AND' ? '∩' : '∪';
-  };
+  // Removed unused functions to fix ESLint warnings
 
   return (
     <div className="space-y-4">

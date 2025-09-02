@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import metaService, { MetaTargetingSpec, BatchPostalCodeResult, PostalCodeReachEstimate } from '../services/metaService';
+import metaService, { MetaTargetingSpec } from '../services/metaService';
 import CountrySelector from '../components/CountrySelector';
 import projectService from '../services/projectService';
 
@@ -24,7 +24,6 @@ interface ProcessingResult {
 
 const ResultsPage: React.FC<ResultsPageProps> = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<ProcessingResult[]>([]);
@@ -260,8 +259,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
     };
 
     loadData();
-  }, []); // Empty dependency array - only run once on mount
+    }, [navigate, selectedCountry]); // Added missing dependencies
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const processPostalCode = async (postalCode: string, index: number) => {
     if (!adAccountId || !targetingSpec) {
       console.error('❌ Missing required data for processing:', { adAccountId: !!adAccountId, targetingSpec: !!targetingSpec });

@@ -29,17 +29,16 @@ router.post('/file', upload, async (req, res) => {
       });
     }
 
-    const filePath = req.file.path;
     const fileInfo = {
-      filename: req.file.filename,
+      filename: req.file.filename || 'uploaded-file',
       originalName: req.file.originalname,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      path: filePath
+      buffer: req.file.buffer
     };
 
-    // Process the file
-    const processedData = await fileProcessor.processFile(filePath);
+    // Process the file from buffer (for Vercel compatibility)
+    const processedData = await fileProcessor.processFile(null, req.file.buffer);
     
     // Create a mock project for now (in real app, this would come from user session)
     const projectId = 1; // TODO: Get from user session
@@ -47,7 +46,7 @@ router.post('/file', upload, async (req, res) => {
     // Save file upload record (mock for now)
     const uploadRecord = { rows: [{ id: 1 }] };
     try {
-      const result = await db.query(
+      const result = await db.run(
         `INSERT INTO file_uploads (project_id, filename, original_filename, file_size, file_type, upload_path, status, validation_errors)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
         [
@@ -56,7 +55,7 @@ router.post('/file', upload, async (req, res) => {
           fileInfo.originalName,
           fileInfo.size,
           fileInfo.mimetype,
-          fileInfo.path,
+          'memory://' + fileInfo.filename, // Use memory path for Vercel
           'processed',
           JSON.stringify(processedData.invalidPostalCodes)
         ]
@@ -64,10 +63,11 @@ router.post('/file', upload, async (req, res) => {
       uploadRecord.rows = result.rows;
     } catch (error) {
       console.log('⚠️  Database not available, using mock data...');
+      console.log('⚠️  Error details:', error.message);
     }
 
     // Generate preview
-    const preview = fileProcessor.generatePreview(processedData);
+    const preview = fileProcessor.generatePreview(processedData, 50);
 
     res.json({
       success: true,
@@ -87,11 +87,7 @@ router.post('/file', upload, async (req, res) => {
   } catch (error) {
     console.error('Upload error:', error);
     
-    // Clean up file if it was uploaded
-    if (req.file) {
-      await fileProcessor.cleanupFile(req.file.path);
-    }
-
+    // No need to clean up file in memory storage
     res.status(500).json({
       success: false,
       message: error.message
@@ -109,16 +105,13 @@ router.post('/validate', upload, async (req, res) => {
       });
     }
 
-    const filePath = req.file.path;
-    
-    // Process the file
-    const processedData = await fileProcessor.processFile(filePath);
+    // Process the file from buffer (for Vercel compatibility)
+    const processedData = await fileProcessor.processFile(null, req.file.buffer);
     
     // Generate preview
-    const preview = fileProcessor.generatePreview(processedData);
+    const preview = fileProcessor.generatePreview(processedData, 50);
 
-    // Clean up the file after validation
-    await fileProcessor.cleanupFile(filePath);
+    // No need to clean up file in memory storage
 
     res.json({
       success: true,
@@ -139,11 +132,7 @@ router.post('/validate', upload, async (req, res) => {
   } catch (error) {
     console.error('Validation error:', error);
     
-    // Clean up file if it was uploaded
-    if (req.file) {
-      await fileProcessor.cleanupFile(req.file.path);
-    }
-
+    // No need to clean up file in memory storage
     res.status(500).json({
       success: false,
       message: error.message

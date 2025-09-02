@@ -1,19 +1,36 @@
 const { Pool } = require('pg');
-const path = require('path');
-const fs = require('fs');
 
 class LocalDatabase {
   constructor() {
-    this.pool = new Pool({
-      host: process.env.DB_HOST || 'postgres',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'scout_interest_db',
-      user: process.env.DB_USER || 'scout_user',
-      password: process.env.DB_PASSWORD || 'scout_password',
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    // Utiliser Supabase si DATABASE_URL est disponible, sinon PostgreSQL local
+    const hasDatabaseUrl = process.env.DATABASE_URL;
+    
+    if (hasDatabaseUrl) {
+      // Configuration Supabase (production ou développement avec DATABASE_URL)
+      this.pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: {
+          rejectUnauthorized: false
+        },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+      console.log('✅ Using Supabase database (DATABASE_URL provided)');
+    } else {
+      // Configuration PostgreSQL local pour le développement sans DATABASE_URL
+      this.pool = new Pool({
+        host: process.env.DB_HOST || 'postgres',
+        port: process.env.DB_PORT || 5432,
+        database: process.env.DB_NAME || 'scout_interest_db',
+        user: process.env.DB_USER || 'scout_user',
+        password: process.env.DB_PASSWORD || 'scout_password',
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+      console.log('✅ Using local PostgreSQL database (no DATABASE_URL)');
+    }
     
     this.init();
   }
@@ -22,13 +39,15 @@ class LocalDatabase {
     try {
       // Test connection
       const client = await this.pool.connect();
-      console.log('✅ Connected to PostgreSQL database');
+      console.log('✅ Connected to database');
       client.release();
       
       // Create tables
       await this.createTables();
     } catch (err) {
       console.error('❌ Error connecting to database:', err.message);
+      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+      console.error('❌ NODE_ENV:', process.env.NODE_ENV);
     }
   }
 

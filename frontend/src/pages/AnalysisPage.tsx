@@ -6,7 +6,7 @@ import PostalCodeTester from '../components/PostalCodeTester';
 
 const AnalysisPage: React.FC = () => {
   const [adAccountId, setAdAccountId] = useState('');
-  const [targetingSpec, setTargetingSpec] = useState<MetaTargetingSpec>({
+  const [targetingSpec] = useState<MetaTargetingSpec>({
     geo_locations: [{ countries: ['US'] }],
     age_min: 18,
     age_max: 65,

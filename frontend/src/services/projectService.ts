@@ -2,6 +2,9 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
+console.log('🔍 ProjectService - API_BASE_URL:', API_BASE_URL);
+console.log('🔍 ProjectService - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+
 export interface Project {
   id: number;
   name: string;
@@ -46,10 +49,13 @@ class ProjectService {
   // Créer un nouveau projet
   async createProject(projectData: CreateProjectRequest): Promise<{ success: boolean; project?: Project; error?: string }> {
     try {
+      console.log('📋 Creating project with URL:', `${API_BASE_URL}/projects`);
       const response = await axios.post(`${API_BASE_URL}/projects`, projectData);
       return { success: true, project: response.data.data.project };
     } catch (error: any) {
-      console.error('Error creating project:', error);
+      console.error('❌ Error creating project:', error);
+      console.error('❌ Request URL:', `${API_BASE_URL}/projects`);
+      console.error('❌ Error response:', error.response?.data);
       return { 
         success: false, 
         error: error.response?.data?.message || error.message 
@@ -60,10 +66,13 @@ class ProjectService {
   // Récupérer un projet par ID
   async getProject(projectId: number): Promise<{ success: boolean; project?: Project; error?: string }> {
     try {
+      console.log('📋 Getting project with URL:', `${API_BASE_URL}/projects/${projectId}`);
       const response = await axios.get(`${API_BASE_URL}/projects/${projectId}`);
       return { success: true, project: response.data.data.project };
     } catch (error: any) {
-      console.error('Error getting project:', error);
+      console.error('❌ Error getting project:', error);
+      console.error('❌ Request URL:', `${API_BASE_URL}/projects/${projectId}`);
+      console.error('❌ Error response:', error.response?.data);
       return { 
         success: false, 
         error: error.response?.data?.message || error.message 
@@ -74,10 +83,22 @@ class ProjectService {
   // Récupérer tous les projets d'un utilisateur
   async getUserProjects(userId: string): Promise<{ success: boolean; projects?: Project[]; error?: string }> {
     try {
+      console.log('📋 Getting user projects with URL:', `${API_BASE_URL}/projects/user/${userId}`);
+      console.log('📋 Full request details:', {
+        url: `${API_BASE_URL}/projects/user/${userId}`,
+        method: 'GET',
+        userId: userId
+      });
+      
       const response = await axios.get(`${API_BASE_URL}/projects/user/${userId}`);
+      console.log('✅ User projects response:', response.data);
       return { success: true, projects: response.data.data.projects };
     } catch (error: any) {
-      console.error('Error getting user projects:', error);
+      console.error('❌ Error getting user projects:', error);
+      console.error('❌ Request URL:', `${API_BASE_URL}/projects/user/${userId}`);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error message:', error.message);
       return { 
         success: false, 
         error: error.response?.data?.message || error.message 
@@ -154,5 +175,6 @@ class ProjectService {
   }
 }
 
-export default new ProjectService();
+const projectService = new ProjectService();
+export default projectService;
 

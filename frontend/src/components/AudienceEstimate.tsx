@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MetaTargetingSpec, DeliveryEstimate, AdvancedTargetingSpec } from '../services/metaService';
 import metaService from '../services/metaService';
 import toast from 'react-hot-toast';
@@ -21,8 +21,33 @@ const AudienceEstimate: React.FC<AudienceEstimateProps> = ({
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Fallback calculation when API fails
+  const calculateFallbackEstimate = useCallback((): DeliveryEstimate => {
+    // Simple fallback calculation
+    const baseAudience = 1000000; // 1M base audience
+    let ageRange = 47; // Default 18-65 range
+    
+    if (targetingSpec?.age_min && targetingSpec?.age_max) {
+      ageRange = targetingSpec.age_max - targetingSpec.age_min;
+    } else if (advancedTargetingSpec?.age_min && advancedTargetingSpec?.age_max) {
+      ageRange = advancedTargetingSpec.age_max - advancedTargetingSpec.age_min;
+    }
+    
+    const ageFactor = ageRange / 47; // Assuming 18-65 range
+    
+    const filteredAudience = Math.round(baseAudience * ageFactor);
+    
+    return {
+      estimate_ready: true,
+      users_lower_bound: Math.round(filteredAudience * 0.8),
+      users_upper_bound: Math.round(filteredAudience * 1.2),
+      estimate_mau_lower_bound: Math.round(filteredAudience * 0.7),
+      estimate_mau_upper_bound: Math.round(filteredAudience * 1.3)
+    };
+  }, [targetingSpec, advancedTargetingSpec]);
+
   // Get audience estimate from Meta API
-  const getAudienceEstimate = async () => {
+  const getAudienceEstimate = useCallback(async () => {
     if (!adAccountId) {
       setError('Ad Account ID not configured');
       return;
@@ -58,39 +83,14 @@ const AudienceEstimate: React.FC<AudienceEstimateProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Fallback calculation when API fails
-  const calculateFallbackEstimate = (): DeliveryEstimate => {
-    // Simple fallback calculation
-    const baseAudience = 1000000; // 1M base audience
-    let ageRange = 47; // Default 18-65 range
-    
-    if (targetingSpec?.age_min && targetingSpec?.age_max) {
-      ageRange = targetingSpec.age_max - targetingSpec.age_min;
-    } else if (advancedTargetingSpec?.age_min && advancedTargetingSpec?.age_max) {
-      ageRange = advancedTargetingSpec.age_max - advancedTargetingSpec.age_min;
-    }
-    
-    const ageFactor = ageRange / 47; // Assuming 18-65 range
-    
-    const filteredAudience = Math.round(baseAudience * ageFactor);
-    
-    return {
-      estimate_ready: true,
-      users_lower_bound: Math.round(filteredAudience * 0.8),
-      users_upper_bound: Math.round(filteredAudience * 1.2),
-      estimate_mau_lower_bound: Math.round(filteredAudience * 0.7),
-      estimate_mau_upper_bound: Math.round(filteredAudience * 1.3)
-    };
-  };
+  }, [adAccountId, targetingSpec, advancedTargetingSpec, calculateFallbackEstimate]);
 
   // Auto-refresh when targeting spec changes
   useEffect(() => {
     if (adAccountId && (targetingSpec || advancedTargetingSpec)) {
       getAudienceEstimate();
     }
-  }, [adAccountId, targetingSpec, advancedTargetingSpec]);
+  }, [adAccountId, targetingSpec, advancedTargetingSpec, getAudienceEstimate]);
 
   const formatNumber = (num: number | undefined | null) => {
     if (num === undefined || num === null) return '0';

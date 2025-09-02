@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Interest, TargetingSpec, MetaTargetingSpec, AdvancedTargetingSpec, InterestGroup } from '../services/metaService';
+import { TargetingSpec, MetaTargetingSpec, AdvancedTargetingSpec, InterestGroup } from '../services/metaService';
 import metaService from '../services/metaService';
 import InterestGroupManager from '../components/InterestGroupManager';
 import AudienceEstimate from '../components/AudienceEstimate';
@@ -25,7 +25,7 @@ const TargetingPage: React.FC = () => {
   const [adAccountId, setAdAccountId] = useState('');
 
   // Load uploaded postal codes count (mock for now)
-  const uploadedPostalCodesCount = 100; // This would come from the uploaded file
+  // const uploadedPostalCodesCount = 100; // This would come from the uploaded file
 
   useEffect(() => {
     const fetchAdAccount = async () => {
@@ -42,6 +42,7 @@ const TargetingPage: React.FC = () => {
   }, []);
 
   // Convert TargetingSpec to MetaTargetingSpec
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getMetaTargetingSpec = (): MetaTargetingSpec => {
     // Flatten all interests from all groups
     const allInterests = interestGroups.flatMap(group => group.interests);

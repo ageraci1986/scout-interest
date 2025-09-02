@@ -8,6 +8,8 @@ class ProjectService {
   // Créer un nouveau projet
   async createProject(projectData) {
     try {
+      console.log('📋 Creating project with data:', projectData);
+      
       const sql = `
         INSERT INTO projects (name, description, user_id, status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -26,6 +28,9 @@ class ProjectService {
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error creating project:', error);
+      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
+      console.error('❌ Environment:', process.env.NODE_ENV);
+      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }
@@ -33,16 +38,23 @@ class ProjectService {
   // Récupérer un projet par ID
   async getProject(projectId) {
     try {
+      console.log('📋 Getting project with ID:', projectId);
+      
       const result = await this.db.run('SELECT * FROM projects WHERE id = $1', [projectId]);
       const project = result.rows[0];
       
       if (!project) {
+        console.log('⚠️ Project not found:', projectId);
         return { success: false, error: 'Project not found' };
       }
 
+      console.log('✅ Project retrieved:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error getting project:', error);
+      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
+      console.error('❌ Environment:', process.env.NODE_ENV);
+      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }
@@ -50,14 +62,23 @@ class ProjectService {
   // Récupérer tous les projets d'un utilisateur
   async getUserProjects(userId) {
     try {
+      console.log('📋 Getting projects for user:', userId);
+      console.log('📋 Database connection status:', this.db ? 'initialized' : 'not initialized');
+      console.log('📋 Environment:', process.env.NODE_ENV);
+      console.log('📋 DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
+      
       const result = await this.db.run(
         'SELECT * FROM projects WHERE user_id = $1 ORDER BY created_at DESC',
         [userId]
       );
 
+      console.log('✅ Retrieved projects count:', result.rows.length);
       return { success: true, projects: result.rows };
     } catch (error) {
       console.error('❌ Error getting user projects:', error);
+      console.error('❌ Database connection status:', this.db ? 'initialized' : 'not initialized');
+      console.error('❌ Environment:', process.env.NODE_ENV);
+      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? 'configured' : 'not configured');
       return { success: false, error: error.message };
     }
   }

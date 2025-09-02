@@ -9,8 +9,16 @@ class FileProcessor {
   }
 
   // Read file and extract data
-  async processFile(filePath) {
-    const ext = path.extname(filePath).toLowerCase();
+  async processFile(filePath, fileBuffer = null) {
+    let ext;
+    
+    if (fileBuffer) {
+      // Handle buffer data (from memory storage)
+      ext = this.getExtensionFromBuffer(fileBuffer);
+    } else {
+      // Handle file path (from disk storage)
+      ext = path.extname(filePath).toLowerCase();
+    }
     
     if (!this.supportedFormats.includes(ext)) {
       throw new Error(`Unsupported file format: ${ext}`);
@@ -20,15 +28,36 @@ class FileProcessor {
       let data;
       
       if (ext === '.csv') {
-        data = await this.readCSV(filePath);
+        data = fileBuffer ? await this.readCSVFromBuffer(fileBuffer) : await this.readCSV(filePath);
       } else {
-        data = await this.readExcel(filePath);
+        data = fileBuffer ? await this.readExcelFromBuffer(fileBuffer) : await this.readExcel(filePath);
       }
 
       return this.validateAndCleanData(data);
     } catch (error) {
       throw new Error(`Error processing file: ${error.message}`);
     }
+  }
+
+  // Get extension from buffer
+  getExtensionFromBuffer(buffer) {
+    // Check for Excel file signatures
+    const excelSignatures = [
+      [0x50, 0x4B, 0x03, 0x04], // .xlsx
+      [0x50, 0x4B, 0x05, 0x06], // .xls
+      [0xD0, 0xCF, 0x11, 0xE0]  // .xls (older format)
+    ];
+    
+    const bufferStart = Array.from(buffer.slice(0, 4));
+    
+    for (const signature of excelSignatures) {
+      if (signature.every((byte, index) => bufferStart[index] === byte)) {
+        return '.xlsx';
+      }
+    }
+    
+    // Default to CSV if no Excel signature found
+    return '.csv';
   }
 
   // Read Excel files
@@ -56,6 +85,34 @@ class FileProcessor {
       };
     } catch (error) {
       throw new Error(`Error reading Excel file: ${error.message}`);
+    }
+  }
+
+  // Read Excel files from buffer
+  async readExcelFromBuffer(buffer) {
+    try {
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert to JSON with headers
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (data.length === 0) {
+        throw new Error('File is empty');
+      }
+
+      // Extract headers and data
+      const headers = data[0];
+      const rows = data.slice(1);
+
+      return {
+        headers,
+        rows,
+        totalRows: rows.length
+      };
+    } catch (error) {
+      throw new Error(`Error reading Excel file from buffer: ${error.message}`);
     }
   }
 
@@ -94,6 +151,48 @@ class FileProcessor {
       });
     } catch (error) {
       throw new Error(`Error reading CSV file: ${error.message}`);
+    }
+  }
+
+  // Read CSV files from buffer
+  async readCSVFromBuffer(buffer) {
+    try {
+      return new Promise((resolve, reject) => {
+        const results = [];
+        const headers = [];
+        let isFirstRow = true;
+        
+        const stream = require('stream');
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(buffer);
+        
+        bufferStream
+          .pipe(csv())
+          .on('data', (data) => {
+            if (isFirstRow) {
+              headers.push(...Object.keys(data));
+              isFirstRow = false;
+            }
+            results.push(Object.values(data));
+          })
+          .on('end', () => {
+            if (results.length === 0) {
+              reject(new Error('File is empty'));
+              return;
+            }
+            
+            resolve({
+              headers,
+              rows: results,
+              totalRows: results.length
+            });
+          })
+          .on('error', (error) => {
+            reject(new Error(`Error reading CSV file from buffer: ${error.message}`));
+          });
+      });
+    } catch (error) {
+      throw new Error(`Error reading CSV file from buffer: ${error.message}`);
     }
   }
 

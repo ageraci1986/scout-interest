@@ -331,4 +331,5 @@ class MetaService {
 
 }
 
-export default new MetaService();
+const metaService = new MetaService();
+export default metaService;

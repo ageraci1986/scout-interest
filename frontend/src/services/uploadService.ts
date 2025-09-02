@@ -163,4 +163,5 @@ class UploadService {
   }
 }
 
-export default new UploadService();
+const uploadService = new UploadService();
+export default uploadService;
