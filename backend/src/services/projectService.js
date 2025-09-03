@@ -1,7 +1,26 @@
-// Mock service pour les projets (fonctionne sans base de données)
+// VRAI service pour les projets avec base de données Supabase
 class ProjectService {
   constructor() {
-    console.log('📋 ProjectService: Using mock service (no database connection)');
+    console.log('📋 ProjectService: Initializing with REAL database connection');
+    this.initializeDatabase();
+  }
+
+  async initializeDatabase() {
+    try {
+      // Utiliser la vraie base de données Supabase
+      const { createClient } = require('@supabase/supabase-js');
+      
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+        this.supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+        console.log('✅ ProjectService: Connected to Supabase database');
+      } else {
+        console.log('⚠️ ProjectService: Supabase credentials missing, using fallback');
+        this.supabase = null;
+      }
+    } catch (error) {
+      console.error('❌ ProjectService: Database initialization failed:', error);
+      this.supabase = null;
+    }
   }
 
   // Créer un nouveau projet
@@ -9,22 +28,30 @@ class ProjectService {
     try {
       console.log('📋 Creating project with data:', projectData);
       
-      // Simuler la création d'un projet
-      const project = {
-        id: Date.now().toString(),
-        name: projectData.name || 'Untitled Project',
-        description: projectData.description || '',
-        user_id: projectData.userId || 'anonymous',
-        status: 'active',
-        total_postal_codes: 0,
-        processed_postal_codes: 0,
-        error_postal_codes: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        targeting_spec: null
-      };
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
       
-      console.log('✅ Project created:', project.id);
+      const { data: project, error } = await this.supabase
+        .from('projects')
+        .insert({
+          name: projectData.name || 'Untitled Project',
+          description: projectData.description || '',
+          user_id: projectData.userId || 'anonymous',
+          status: 'active',
+          total_postal_codes: 0,
+          processed_postal_codes: 0,
+          error_postal_codes: 0,
+          targeting_spec: null
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log('✅ Project created in database:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error creating project:', error);
@@ -37,22 +64,21 @@ class ProjectService {
     try {
       console.log('📋 Getting project with ID:', projectId);
       
-      // Simuler un projet
-      const project = {
-        id: projectId,
-        name: `Project ${projectId}`,
-        description: 'Sample project',
-        user_id: 'anonymous',
-        status: 'active',
-        total_postal_codes: 5,
-        processed_postal_codes: 5,
-        error_postal_codes: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        targeting_spec: null
-      };
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
       
-      console.log('✅ Project retrieved:', project.id);
+      const { data: project, error } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log('✅ Project retrieved from database:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error getting project:', error);
@@ -65,51 +91,58 @@ class ProjectService {
     try {
       console.log('📋 Getting projects for user:', userId);
       
-      // Simuler des projets
-      const projects = [
-        {
-          id: "1",
-          name: "Test Project 1",
-          description: "Sample project for testing",
-          user_id: userId,
-          status: "active",
-          total_postal_codes: 5,
-          processed_postal_codes: 5,
-          error_postal_codes: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          targeting_spec: null
-        },
-        {
-          id: "2",
-          name: "Test Project 2",
-          description: "Another test project",
-          user_id: userId,
-          status: "active",
-          total_postal_codes: 3,
-          processed_postal_codes: 3,
-          error_postal_codes: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          targeting_spec: null
-        }
-      ];
-
-      console.log('✅ Retrieved projects count:', projects.length);
-      return { success: true, projects };
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
+      const { data: projects, error } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log('✅ Retrieved projects from database:', projects.length);
+      return { success: true, projects: projects || [] };
     } catch (error) {
       console.error('❌ Error getting user projects:', error);
       return { success: false, error: error.message };
     }
   }
 
-  // Sauvegarder les résultats de traitement (mock)
+  // Sauvegarder les résultats de traitement (VRAI)
   async saveProcessingResults(projectId, results) {
     try {
-      console.log(`📋 Mock: Saving ${results.length} results for project ${projectId}`);
+      console.log(`📋 Saving ${results.length} results to database for project ${projectId}`);
       
-      // Simuler la sauvegarde
-      console.log(`✅ Mock: Saved ${results.length} processing results for project ${projectId}`);
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
+      // Préparer les données pour la base
+      const resultsToInsert = results.map(result => ({
+        project_id: projectId,
+        postal_code: result.postalCode,
+        country_code: result.countryCode,
+        postal_code_only_estimate: result.postalCodeOnlyEstimate,
+        postal_code_with_targeting_estimate: result.postalCodeWithTargetingEstimate,
+        success: result.success,
+        error_message: result.error,
+        processed_at: new Date().toISOString()
+      }));
+      
+      const { data, error } = await this.supabase
+        .from('processing_results')
+        .insert(resultsToInsert);
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log(`✅ Saved ${results.length} results to database for project ${projectId}`);
       return { success: true, savedCount: results.length };
     } catch (error) {
       console.error('❌ Error saving processing results:', error);
@@ -117,59 +150,27 @@ class ProjectService {
     }
   }
 
-  // Récupérer les résultats d'un projet (mock avec résultats simulés)
+  // Récupérer les résultats d'un projet (VRAI)
   async getProjectResults(projectId) {
     try {
-      console.log(`📋 Mock: Getting results for project ${projectId}`);
+      console.log(`📋 Getting results from database for project ${projectId}`);
       
-      // Simuler des résultats de traitement
-      const mockResults = [
-        {
-          id: 1,
-          project_id: projectId,
-          postal_code: '75001',
-          country_code: 'FR',
-          postal_code_only_estimate: {
-            data: {
-              users_lower_bound: 45000,
-              users_upper_bound: 55000
-            }
-          },
-          postal_code_with_targeting_estimate: {
-            data: {
-              users_lower_bound: 25000,
-              users_upper_bound: 30000
-            }
-          },
-          success: true,
-          error_message: null,
-          processed_at: new Date().toISOString()
-        },
-        {
-          id: 2,
-          project_id: projectId,
-          postal_code: '75002',
-          country_code: 'FR',
-          postal_code_only_estimate: {
-            data: {
-              users_lower_bound: 38000,
-              users_upper_bound: 48000
-            }
-          },
-          postal_code_with_targeting_estimate: {
-            data: {
-              users_lower_bound: 22000,
-              users_upper_bound: 27000
-            }
-          },
-          success: true,
-          error_message: null,
-          processed_at: new Date().toISOString()
-        }
-      ];
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
       
-      console.log(`✅ Mock: Retrieved ${mockResults.length} results for project ${projectId}`);
-      return { success: true, results: mockResults };
+      const { data: results, error } = await this.supabase
+        .from('processing_results')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('processed_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      console.log(`✅ Retrieved ${results.length} results from database for project ${projectId}`);
+      return { success: true, results: results || [] };
     } catch (error) {
       console.error('❌ Error getting project results:', error);
       return { success: false, error: error.message };

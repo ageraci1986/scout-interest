@@ -295,16 +295,16 @@ router.post('/batch-postal-codes-reach-estimate-v2', async (req, res) => {
       console.log('🎯 Interest groups count:', targetingSpec.interestGroups.length);
     }
     
-    // Utiliser le ParallelProcessorFixed pour un traitement optimisé
-    const ParallelProcessorFixed = require('../services/parallelProcessorFixed');
-    const processor = new ParallelProcessorFixed();
+    // Utiliser le ParallelProcessorProduction pour un traitement RÉEL avec Meta API
+    const ParallelProcessorProduction = require('../services/parallelProcessorProduction');
+    const processor = new ParallelProcessorProduction();
     
     const result = await processor.processBatch(
       postalCodes,
       countryCode,
       adAccountId,
       targetingSpec,
-      10 // Batch size optimisé
+      5 // Batch size plus petit pour respecter les rate limits Meta API
     );
 
     console.log(`✅ Optimized parallel batch processing completed: ${result.successful} successful, ${result.errors} errors`);
@@ -626,9 +626,12 @@ router.post('/project-postal-codes-reach-estimate-v2', async (req, res) => {
       );
       postalCodes = postalCodesResult.rows.map(row => row.postal_code);
     } catch (error) {
-      console.log('⚠️ Database not available, using mock postal codes...');
-      // Mock postal codes for testing
-      postalCodes = ['10001', '10002', '10003', '75001', '75002', '75003'];
+      console.error('❌ Database error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while retrieving postal codes',
+        error: error.message
+      });
     }
 
     if (postalCodes.length === 0) {
@@ -798,16 +801,12 @@ router.get('/project/:projectId/postal-codes', async (req, res) => {
       postalCodes = postalCodesResult.rows;
       console.log('✅ Retrieved postal codes from database');
     } catch (error) {
-      console.log('⚠️ Database not available, using mock postal codes...');
-      // Mock postal codes for testing
-      postalCodes = [
-        { postal_code: '10001', country: 'US', status: 'valid' },
-        { postal_code: '10002', country: 'US', status: 'valid' },
-        { postal_code: '10003', country: 'US', status: 'valid' },
-        { postal_code: '75001', country: 'FR', status: 'valid' },
-        { postal_code: '75002', country: 'FR', status: 'valid' },
-        { postal_code: '75003', country: 'FR', status: 'valid' }
-      ];
+      console.error('❌ Database error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while retrieving postal codes',
+        error: error.message
+      });
     }
 
     res.json({

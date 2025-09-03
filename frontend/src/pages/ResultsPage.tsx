@@ -254,16 +254,23 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
               console.log('✅ Converted targeting spec:', convertedTargetingSpec);
               setTargetingSpec(convertedTargetingSpec);
             } else {
-              // Set default targeting spec if none is loaded - Complete targeting for maximum impact
+              // Set default targeting spec if none is loaded - Complete targeting with OR/AND logic
               const defaultTargetingSpec: MetaTargetingSpec = {
                 age_min: 18,
                 age_max: 65,
                 genders: ['1', '2'],
                 device_platforms: ['mobile', 'desktop'],
-                interests: [
-                  { id: '6002714398572', name: 'Technology', audience_size: 1000000, path: ['Technology'] },
-                  { id: '6002714398573', name: 'Business', audience_size: 2000000, path: ['Business'] },
-                  { id: '6002714398574', name: 'Finance', audience_size: 1500000, path: ['Finance'] }
+                interestGroups: [
+                  {
+                    id: 'default-group',
+                    name: 'Technology & Business',
+                    operator: 'OR' as const,
+                    interests: [
+                      { id: '6002714398572', name: 'Technology', audience_size: 1000000, path: ['Technology'] },
+                      { id: '6002714398573', name: 'Business', audience_size: 2000000, path: ['Business'] },
+                      { id: '6002714398574', name: 'Finance', audience_size: 1500000, path: ['Finance'] }
+                    ]
+                  }
                 ]
               };
               setTargetingSpec(defaultTargetingSpec);
@@ -565,13 +572,20 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
             error: backendResult.error_message
           };
           
+          // Vérifier l'impact du targeting
+          const hasTargetingImpact = converted.withTargeting.users_lower_bound && 
+                                   converted.postalCodeOnly.users_lower_bound &&
+                                   converted.withTargeting.users_lower_bound !== converted.postalCodeOnly.users_lower_bound;
+          
           console.log('🔍 Converting result:', {
             original: backendResult,
             converted: converted,
             postalCode: converted.postalCode,
             country: converted.country,
             postalCodeOnly: converted.postalCodeOnly,
-            withTargeting: converted.withTargeting
+            withTargeting: converted.withTargeting,
+            hasTargetingImpact: hasTargetingImpact,
+            targetingImpact: backendResult.targetingImpact
           });
           
           return converted;
@@ -882,6 +896,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                     Audience avec Targeting
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Impact Targeting
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Statut
                   </th>
                 </tr>
@@ -911,6 +928,22 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                         </span>
                       ) : (
                         <span className="text-gray-400">N/A</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {result.status === 'completed' && result.postalCodeOnly?.users_lower_bound && result.withTargeting?.users_lower_bound ? (
+                        <span className={
+                          result.withTargeting.users_lower_bound < result.postalCodeOnly.users_lower_bound
+                            ? 'text-green-600 font-medium'
+                            : 'text-gray-400'
+                        }>
+                          {result.withTargeting.users_lower_bound < result.postalCodeOnly.users_lower_bound
+                            ? `-${(((result.postalCodeOnly.users_lower_bound - result.withTargeting.users_lower_bound) / result.postalCodeOnly.users_lower_bound) * 100).toFixed(1)}%`
+                            : 'Aucun impact'
+                          }
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

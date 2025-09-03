@@ -83,47 +83,13 @@ router.get('/user/:userId', async (req, res) => {
         });
       }
     } catch (dbError) {
-      console.log('⚠️ Database service failed, using mock data:', dbError.message);
+      console.error('❌ Database service failed:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database service unavailable',
+        error: dbError.message
+      });
     }
-    
-    // Fallback vers des données mock
-    const mockProjects = [
-      {
-        id: "1",
-        name: "Test Project 1",
-        description: "Sample project for testing",
-        user_id: userId,
-        status: "active",
-        total_postal_codes: 5,
-        processed_postal_codes: 5,
-        error_postal_codes: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        targeting_spec: null
-      },
-      {
-        id: "2",
-        name: "Test Project 2",
-        description: "Another test project",
-        user_id: userId,
-        status: "active",
-        total_postal_codes: 3,
-        processed_postal_codes: 3,
-        error_postal_codes: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        targeting_spec: null
-      }
-    ];
-    
-    console.log('✅ Mock projects service returning:', mockProjects.length, 'projects');
-    
-    res.json({
-      success: true,
-      data: {
-        projects: mockProjects
-      }
-    });
     
   } catch (error) {
     console.error('❌ Error getting user projects:', error);
@@ -173,10 +139,22 @@ router.patch('/:projectId', async (req, res) => {
     console.log('📋 PATCH request for project:', projectId);
     console.log('📋 Update data:', updateData);
     
-    // Simuler la mise à jour (service mock)
-    const updatedProject = {
-      id: projectId,
-      name: `Project ${projectId}`,
+    // Utiliser le vrai service de mise à jour
+    const result = await projectService.updateProject(projectId, updateData);
+    
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        project: result.project
+      }
+    });
       description: 'Updated project',
       user_id: 'anonymous',
       status: 'active',
@@ -190,12 +168,7 @@ router.patch('/:projectId', async (req, res) => {
     
     console.log('✅ Project updated successfully');
     
-    res.json({
-      success: true,
-      data: {
-        project: updatedProject
-      }
-    });
+    // Le code de réponse est déjà géré plus haut
   } catch (error) {
     console.error('❌ Error updating project (PATCH):', error);
     res.status(500).json({

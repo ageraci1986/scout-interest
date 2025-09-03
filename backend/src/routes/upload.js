@@ -9,13 +9,8 @@ try {
   const queueConfig = require('../config/queue');
   uploadQueue = queueConfig.uploadQueue;
 } catch (error) {
-  console.log('⚠️  Queue not available, using mock queue...');
-  uploadQueue = {
-    add: async (name, data, options) => {
-      console.log(`Mock queue job: ${name}`, data);
-      return { id: 'mock-job-id' };
-    }
-  };
+  console.error('❌ Queue not available:', error.message);
+  uploadQueue = null;
 }
 const path = require('path');
 
@@ -40,11 +35,11 @@ router.post('/file', upload, async (req, res) => {
     // Process the file from buffer (for Vercel compatibility)
     const processedData = await fileProcessor.processFile(null, req.file.buffer);
     
-    // Create a mock project for now (in real app, this would come from user session)
-    const projectId = 1; // TODO: Get from user session
+    // TODO: Get project ID from user session in production
+    const projectId = 'anonymous'; // Placeholder for now
     
-    // Save file upload record (mock for now)
-    const uploadRecord = { rows: [{ id: 1 }] };
+    // Save file upload record
+    let uploadRecord = null;
     try {
       const result = await db.run(
         `INSERT INTO file_uploads (project_id, filename, original_filename, file_size, file_type, upload_path, status, validation_errors)
@@ -62,8 +57,12 @@ router.post('/file', upload, async (req, res) => {
       );
       uploadRecord.rows = result.rows;
     } catch (error) {
-      console.log('⚠️  Database not available, using mock data...');
-      console.log('⚠️  Error details:', error.message);
+      console.error('❌ Database error:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while saving upload record',
+        error: error.message
+      });
     }
 
     // Generate preview
@@ -73,7 +72,7 @@ router.post('/file', upload, async (req, res) => {
       success: true,
       message: 'File uploaded and processed successfully',
       data: {
-        uploadId: uploadRecord.rows[0].id,
+        uploadId: uploadRecord?.rows?.[0]?.id || 'temp-upload',
         filename: fileInfo.originalName,
         statistics: processedData.statistics,
         preview: preview,

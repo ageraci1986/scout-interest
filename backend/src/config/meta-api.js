@@ -1,10 +1,15 @@
 const adsSdk = require('facebook-nodejs-business-sdk');
 
-// Initialize the Facebook Ads API
-const api = adsSdk.FacebookAdsApi.init(process.env.META_ACCESS_TOKEN);
+// Initialize the Facebook Ads API only if token is available
+let api = null;
+if (process.env.META_ACCESS_TOKEN) {
+  api = adsSdk.FacebookAdsApi.init(process.env.META_ACCESS_TOKEN);
+} else {
+  console.log('⚠️  META_ACCESS_TOKEN not found, Meta API will be unavailable');
+}
 
 // Enable debug mode in development
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' && api) {
   api.setDebug(true);
 }
 
