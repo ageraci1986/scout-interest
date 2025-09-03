@@ -22,6 +22,7 @@ function App() {
             <Route path="/targeting" element={<TargetingPage />} />
             <Route path="/analysis" element={<AnalysisPage />} />
             <Route path="/results" element={<ResultsPage />} />
+            <Route path="/results/:projectId" element={<ResultsPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/test" element={<TestAPI />} />

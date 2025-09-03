@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api';
+// Utiliser directement l'URL de l'API Vercel qui fonctionne
+const API_BASE_URL = 'https://scout-interest-optimized-a9fxapxv5-angelo-geracis-projects.vercel.app/api';
 
 console.log('🔍 ProjectService - API_BASE_URL:', API_BASE_URL);
 console.log('🔍 ProjectService - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
@@ -17,6 +18,7 @@ export interface Project {
   targeting_spec?: any;
   created_at: string;
   updated_at: string;
+  results?: ProcessingResult[];
 }
 
 export interface ProcessingResult {

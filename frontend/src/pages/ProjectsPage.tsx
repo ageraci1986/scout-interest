@@ -42,11 +42,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
       setLoadingResults(true);
       setSelectedProject(project);
       
-      const result = await projectService.getProjectResults(project.id);
+      // Utiliser l'endpoint principal qui fonctionne au lieu de /results
+      const result = await projectService.getProject(project.id);
       
-      if (result.success && result.results) {
-        setProjectResults(result.results);
-        console.log('✅ Project results loaded:', result.results);
+      if (result.success && result.project && result.project.results) {
+        setProjectResults(result.project.results);
+        console.log('✅ Project results loaded:', result.project.results);
       } else {
         console.error('❌ Failed to load project results:', result.error);
         toast.error('Erreur lors du chargement des résultats');
@@ -242,7 +243,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Résultats du traitement</h3>
                     <button
-                      onClick={() => navigate(`/results?projectId=${selectedProject.id}`)}
+                      onClick={() => window.open(`/results/${selectedProject.id}`, '_blank')}
                       className="btn-secondary text-sm"
                     >
                       Voir Détails
