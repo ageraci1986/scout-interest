@@ -401,6 +401,26 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
             audience_estimate: audienceEstimate,
             targeting_estimate: targetingEstimate
           });
+
+        } else {
+          console.error(`❌ [ASYNC] ${postalCode}: Estimation géographique indisponible`);
+          
+          await projectService.updateProcessingResult(projectId, postalCode, {
+            success: false,
+            postalCodeOnlyEstimate: { audience_size: 0 },
+            postalCodeWithTargetingEstimate: { audience_size: 0 },
+            error: 'Geo estimation unavailable'
+          });
+
+          updatedResults.push({
+            postal_code: postalCode,
+            success: false,
+            audience_estimate: 0,
+            targeting_estimate: 0,
+            error: 'Geo estimation unavailable'
+          });
+        }
+
         } catch (metaError) {
           console.error(`❌ [ASYNC] ${postalCode}: Erreur Meta API:`, metaError.message);
           
