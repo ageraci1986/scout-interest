@@ -11,7 +11,7 @@
     "build": "cd frontend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm install --production",
-    "build:vercel": "npm run install:all && npm run build:frontend",
+    "build:vercel": "npm run build:frontend",
     "test": "concurrently \"cd backend && npm test\" \"cd frontend && npm test\"",
     "test:backend": "cd backend && npm test",
     "test:frontend": "cd frontend && npm test",
