@@ -298,13 +298,15 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
             targetingSpec: {
               age_min: targeting_spec.age_min || 18,
               age_max: targeting_spec.age_max || 65,
-              genders: targeting_spec.genders || [1, 2],
+              genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
               // Pas d'intérêts pour l'estimation géographique
             }
           },
           { headers: { 'Content-Type': 'application/json' } }
         );
 
+        console.log(`🔍 [ASYNC] ${postalCode}: Réponse API géographique:`, JSON.stringify(geoResponse.data, null, 2));
+        
         if (geoResponse.data?.success && geoResponse.data?.data?.reachEstimate) {
           const geoReachData = geoResponse.data.data.reachEstimate;
           const audienceEstimate = geoReachData.users_lower_bound || geoReachData.users_upper_bound || 0;
@@ -320,7 +322,7 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
               targetingSpec: {
                 age_min: targeting_spec.age_min || 18,
                 age_max: targeting_spec.age_max || 65,
-                genders: targeting_spec.genders || [1, 2],
+                genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
                 interests: targeting_spec.interests || [],
                 countries: targeting_spec.countries || ['US']
               }
@@ -343,11 +345,18 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
           console.log(`✅ [ASYNC] ${postalCode}: audience=${audienceEstimate}, targeting=${targetingEstimate}`);
 
           // Mettre à jour le résultat existant dans la base au lieu d'en créer un nouveau
-          await projectService.updateProcessingResult(projectId, postalCode, {
+          console.log(`💾 [ASYNC] ${postalCode}: Sauvegarde des estimations...`);
+          const updateResult = await projectService.updateProcessingResult(projectId, postalCode, {
             success: true,
             postalCodeOnlyEstimate: { audience_size: audienceEstimate },
             postalCodeWithTargetingEstimate: { audience_size: targetingEstimate }
           });
+          
+          if (updateResult.success) {
+            console.log(`✅ [ASYNC] ${postalCode}: Estimations sauvegardées avec succès`);
+          } else {
+            console.error(`❌ [ASYNC] ${postalCode}: Erreur sauvegarde:`, updateResult.error);
+          }
 
           updatedResults.push({
             postal_code: postalCode,
