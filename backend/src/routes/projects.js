@@ -259,7 +259,159 @@ router.post('/:projectId/results', async (req, res) => {
   }
 });
 
-// Mettre à jour le targeting spec d'un projet ET calculer les estimations Meta API
+// Fonction asynchrone pour traiter les estimations Meta API
+async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
+  try {
+    console.log(`🚀 [ASYNC] Démarrage du traitement Meta API pour le projet ${projectId}`);
+    
+    // Marquer le projet comme "processing" 
+    await projectService.updateProject(projectId, { status: 'processing' });
+
+    // 2. Récupérer les codes postaux du projet depuis la base de données
+    const postalCodesResult = await projectService.getProjectResults(projectId);
+    
+    if (!postalCodesResult.success || !postalCodesResult.results || postalCodesResult.results.length === 0) {
+      console.error(`❌ [ASYNC] No postal codes found for project ${projectId}`);
+      await projectService.updateProject(projectId, { status: 'error' });
+      return;
+    }
+
+    const postalCodes = postalCodesResult.results.map(r => r.postal_code);
+    console.log(`🚀 [ASYNC] Calcul des estimations Meta API pour ${postalCodes.length} codes postaux...`);
+
+    // 3. Calculer les estimations Meta API pour chaque code postal
+    const axios = require('axios');
+    const metaUrl = `${baseUrl}/api/meta/postal-code-reach-estimate-v2`;
+    const updatedResults = [];
+
+    for (const postalCode of postalCodes) {
+      try {
+        console.log(`🔄 [ASYNC] Traitement de ${postalCode}...`);
+        
+        // 1. Premier appel Meta API : Code postal seul (estimation géographique)
+        const geoResponse = await axios.post(
+          metaUrl,
+          {
+            adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
+            postalCode: postalCode,
+            targetingSpec: {
+              age_min: targeting_spec.age_min || 18,
+              age_max: targeting_spec.age_max || 65,
+              genders: targeting_spec.genders || [1, 2],
+              // Pas d'intérêts pour l'estimation géographique
+            }
+          },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        if (geoResponse.data?.success && geoResponse.data?.data?.reachEstimate) {
+          const geoReachData = geoResponse.data.data.reachEstimate;
+          const audienceEstimate = geoReachData.users_lower_bound || geoReachData.users_upper_bound || 0;
+          
+          console.log(`✅ [ASYNC] ${postalCode}: Estimation géographique = ${audienceEstimate}`);
+          
+          // 2. Deuxième appel Meta API : Code postal + targeting (estimation avec targeting)
+          const targetingResponse = await axios.post(
+            metaUrl,
+            {
+              adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
+              postalCode: postalCode,
+              targetingSpec: {
+                age_min: targeting_spec.age_min || 18,
+                age_max: targeting_spec.age_max || 65,
+                genders: targeting_spec.genders || [1, 2],
+                interests: targeting_spec.interests || [],
+                countries: targeting_spec.countries || ['US']
+              }
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+
+          let targetingEstimate = 0; // Valeur par défaut différente pour distinguer les cas
+
+          if (targetingResponse.data?.success && targetingResponse.data?.data?.reachEstimate) {
+            const targetingReachData = targetingResponse.data.data.reachEstimate;
+            targetingEstimate = targetingReachData.users_lower_bound || targetingReachData.users_upper_bound || 0;
+            console.log(`✅ [ASYNC] ${postalCode}: Estimation avec targeting = ${targetingEstimate}`);
+          } else {
+            console.warn(`⚠️ [ASYNC] ${postalCode}: Impossible d'obtenir l'estimation avec targeting, utilisation de 50% de l'estimation géographique`);
+            // En cas d'échec, utiliser 50% de l'estimation géographique pour différencier
+            targetingEstimate = Math.round(audienceEstimate * 0.5);
+          }
+
+          console.log(`✅ [ASYNC] ${postalCode}: audience=${audienceEstimate}, targeting=${targetingEstimate}`);
+
+          // Mettre à jour le résultat existant dans la base au lieu d'en créer un nouveau
+          await projectService.updateProcessingResult(projectId, postalCode, {
+            success: true,
+            postalCodeOnlyEstimate: { audience_size: audienceEstimate },
+            postalCodeWithTargetingEstimate: { audience_size: targetingEstimate }
+          });
+
+          updatedResults.push({
+            postal_code: postalCode,
+            success: true,
+            audience_estimate: audienceEstimate,
+            targeting_estimate: targetingEstimate
+          });
+        } else {
+          console.error(`❌ [ASYNC] ${postalCode}: Réponse Meta API invalide`);
+          
+          await projectService.updateProcessingResult(projectId, postalCode, {
+            success: false,
+            postalCodeOnlyEstimate: { audience_size: 0 },
+            postalCodeWithTargetingEstimate: { audience_size: 0 },
+            error: 'Invalid Meta API response'
+          });
+
+          updatedResults.push({
+            postal_code: postalCode,
+            success: false,
+            audience_estimate: 0,
+            targeting_estimate: 0,
+            error: 'Invalid Meta API response'
+          });
+        }
+
+        // Délai entre les appels pour respecter les rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`❌ [ASYNC] Erreur calcul estimation ${postalCode}:`, error.message);
+        
+        await projectService.updateProcessingResult(projectId, postalCode, {
+          success: false,
+          postalCodeOnlyEstimate: { audience_size: 0 },
+          postalCodeWithTargetingEstimate: { audience_size: 0 },
+          error: error.message
+        });
+
+        updatedResults.push({
+          postal_code: postalCode,
+          success: false,
+          audience_estimate: 0,
+          targeting_estimate: 0,
+          error: error.message
+        });
+      }
+    }
+
+    console.log(`✅ [ASYNC] Estimations Meta API calculées pour ${updatedResults.length} codes postaux`);
+
+    // 4. Mettre à jour le statut du projet
+    await projectService.updateProject(projectId, { 
+      status: 'completed',
+      processed_postal_codes: updatedResults.filter(r => r.success).length,
+      error_postal_codes: updatedResults.filter(r => !r.success).length
+    });
+
+    console.log(`🎉 [ASYNC] Traitement Meta API terminé pour le projet ${projectId}`);
+  } catch (error) {
+    console.error(`❌ [ASYNC] Erreur durant le traitement Meta API pour le projet ${projectId}:`, error);
+    await projectService.updateProject(projectId, { status: 'error' });
+  }
+}
+
+// Mettre à jour le targeting spec d'un projet ET lancer les estimations Meta API en arrière-plan
 router.patch('/:projectId/targeting', async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -285,7 +437,7 @@ router.patch('/:projectId/targeting', async (req, res) => {
       });
     }
 
-    // 2. Récupérer les codes postaux du projet depuis la base de données
+    // 2. Vérifier que le projet a des codes postaux
     const postalCodesResult = await projectService.getProjectResults(projectId);
     
     if (!postalCodesResult.success || !postalCodesResult.results || postalCodesResult.results.length === 0) {
@@ -295,134 +447,27 @@ router.patch('/:projectId/targeting', async (req, res) => {
       });
     }
 
-    const postalCodes = postalCodesResult.results.map(r => r.postal_code);
-    console.log(`🚀 Calcul des estimations Meta API pour ${postalCodes.length} codes postaux...`);
+    const postalCodesCount = postalCodesResult.results.length;
+    console.log(`🚀 Found ${postalCodesCount} postal codes for project ${projectId}`);
 
-    // 3. Calculer les estimations Meta API pour chaque code postal
-    const axios = require('axios');
-    const baseUrl = req.protocol + '://' + req.get('host');
-    const metaUrl = `${baseUrl}/api/meta/postal-code-reach-estimate-v2`;
-
-    const updatedResults = [];
-
-    for (const postalCode of postalCodes) {
-      try {
-        console.log(`🔍 Calcul estimation pour ${postalCode}...`);
-
-        // 1. Premier appel Meta API : Code postal seul (estimation géographique)
-        const geoResponse = await axios.post(
-          metaUrl,
-          {
-            adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
-            postalCode: postalCode,
-            targetingSpec: {
-              age_min: targeting_spec.age_min || 18,
-              age_max: targeting_spec.age_max || 65,
-              genders: targeting_spec.genders || [1, 2],
-              // Pas d'intérêts pour l'estimation géographique
-            }
-          },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        if (geoResponse.data?.success && geoResponse.data?.data?.reachEstimate) {
-          const geoReachData = geoResponse.data.data.reachEstimate;
-          const audienceEstimate = geoReachData.users_lower_bound || geoReachData.users_upper_bound || 0;
-          
-          console.log(`✅ ${postalCode}: Estimation géographique = ${audienceEstimate}`);
-          
-          // 2. Deuxième appel Meta API : Code postal + targeting (estimation avec targeting)
-          const targetingResponse = await axios.post(
-            metaUrl,
-            {
-              adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
-              postalCode: postalCode,
-              targetingSpec: {
-                age_min: targeting_spec.age_min || 18,
-                age_max: targeting_spec.age_max || 65,
-                genders: targeting_spec.genders || [1, 2],
-                interests: targeting_spec.interests || [],
-                countries: targeting_spec.countries || ['US']
-              }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-          );
-
-          let targetingEstimate = audienceEstimate; // Valeur par défaut
-
-          if (targetingResponse.data?.success && targetingResponse.data?.data?.reachEstimate) {
-            const targetingReachData = targetingResponse.data.data.reachEstimate;
-            targetingEstimate = targetingReachData.users_lower_bound || targetingReachData.users_upper_bound || 0;
-            console.log(`✅ ${postalCode}: Estimation avec targeting = ${targetingEstimate}`);
-          } else {
-            console.warn(`⚠️ ${postalCode}: Impossible d'obtenir l'estimation avec targeting, utilisation de l'estimation géographique`);
-          }
-
-          console.log(`✅ ${postalCode}: audience=${audienceEstimate}, targeting=${targetingEstimate}`);
-
-          // Mettre à jour le résultat existant dans la base au lieu d'en créer un nouveau
-          await projectService.updateProcessingResult(projectId, postalCode, {
-            success: true,
-            postalCodeOnlyEstimate: { audience_size: audienceEstimate },
-            postalCodeWithTargetingEstimate: { audience_size: targetingEstimate }
-          });
-
-          updatedResults.push({
-            postal_code: postalCode,
-            success: true,
-            audience_estimate: audienceEstimate,
-            targeting_estimate: targetingEstimate
-          });
-
-        } else {
-          console.error(`❌ ${postalCode}: Réponse Meta API invalide`);
-          
-          // En cas d'échec, marquer comme échec et continuer
-          updatedResults.push({
-            postal_code: postalCode,
-            success: false,
-            audience_estimate: 0,
-            targeting_estimate: 0,
-            error: 'Invalid Meta API response'
-          });
-        }
-
-        // Délai entre les appels pour respecter les rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-      } catch (error) {
-        console.error(`❌ Erreur calcul estimation ${postalCode}:`, error.message);
-        
-        // En cas d'erreur, garder les valeurs par défaut
-        updatedResults.push({
-          postal_code: postalCode,
-          success: false,
-          audience_estimate: 0,
-          targeting_estimate: 0,
-          error: error.message
-        });
-      }
-    }
-
-    console.log(`✅ Estimations Meta API calculées pour ${updatedResults.length} codes postaux`);
-
-    // 4. Mettre à jour le statut du projet
-    await projectService.updateProject(projectId, { 
-      status: 'completed',
-      processed_postal_codes: updatedResults.filter(r => r.success).length,
-      error_postal_codes: updatedResults.filter(r => !r.success).length
-    });
-
+    // 3. Répondre immédiatement au frontend
     res.json({
       success: true,
-      message: 'Targeting spec updated and Meta API estimates calculated successfully',
+      message: 'Targeting spec updated successfully. Meta API processing started in background.',
       data: {
         project: result.project,
-        results: updatedResults,
-        totalProcessed: updatedResults.length,
-        successful: updatedResults.filter(r => r.success).length,
-        errors: updatedResults.filter(r => !r.success).length
+        totalPostalCodes: postalCodesCount,
+        status: 'processing_started'
       }
+    });
+
+    // 4. Lancer le traitement Meta API en arrière-plan (ne pas attendre)
+    const baseUrl = req.protocol + '://' + req.get('host');
+    setImmediate(() => {
+      processMetaAPIEstimates(projectId, targeting_spec, baseUrl)
+        .catch(error => {
+          console.error(`❌ Background processing failed for project ${projectId}:`, error);
+        });
     });
 
   } catch (error) {
