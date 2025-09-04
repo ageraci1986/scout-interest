@@ -2,19 +2,27 @@
 class ProjectService {
   constructor() {
     console.log('📋 ProjectService: Initializing with REAL database connection');
+    this.supabase = null;
     this.initializeDatabase();
   }
 
-  async initializeDatabase() {
+  initializeDatabase() {
     try {
       // Utiliser la vraie base de données Supabase
       const { createClient } = require('@supabase/supabase-js');
       
+      console.log('🔧 Checking Supabase environment variables...');
+      console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+      console.log('SUPABASE_ANON_KEY exists:', !!process.env.SUPABASE_ANON_KEY);
+      
       if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
         this.supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
         console.log('✅ ProjectService: Connected to Supabase database');
+        console.log('🔗 Supabase URL:', process.env.SUPABASE_URL.substring(0, 50) + '...');
       } else {
-        console.log('⚠️ ProjectService: Supabase credentials missing, using fallback');
+        console.log('⚠️ ProjectService: Supabase credentials missing');
+        console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? 'SET' : 'MISSING');
+        console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'SET' : 'MISSING');
         this.supabase = null;
       }
     } catch (error) {
@@ -29,7 +37,8 @@ class ProjectService {
       console.log('📋 Creating project with data:', projectData);
       
       if (!this.supabase) {
-        throw new Error('Database not initialized');
+        console.error('❌ Supabase client not initialized');
+        throw new Error('Invalid API key');
       }
       
       const { data: projects, error } = await this.supabase
@@ -149,6 +158,7 @@ class ProjectService {
       console.log(`📋 Saving ${results.length} results to database for project ${projectId}`);
       
       if (!this.supabase) {
+        console.error('❌ Supabase client not initialized for saveProcessingResults');
         throw new Error('Database not initialized');
       }
       
