@@ -281,8 +281,8 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
 
     // 3. Calculer les estimations Meta API pour chaque code postal
     const axios = require('axios');
-    // Utiliser l'URL complète pour éviter les problèmes avec baseUrl
-    const metaUrl = 'https://scout-interest-pyz561zsh-angelo-geracis-projects-57159db6.vercel.app/api/meta/postal-code-reach-estimate-v2';
+    // Utiliser l'URL actuelle pour éviter les problèmes avec baseUrl
+    const metaUrl = baseUrl ? `${baseUrl}/api/meta/postal-code-reach-estimate-v2` : 'https://scout-interest-2sif9bn30-angelo-geracis-projects-57159db6.vercel.app/api/meta/postal-code-reach-estimate-v2';
     const updatedResults = [];
 
     for (const postalCode of postalCodes) {
@@ -467,7 +467,8 @@ router.patch('/:projectId/targeting', async (req, res) => {
       console.log(`🚀 Processing ${postalCodesCount} postal codes synchronously...`);
       try {
         // Traitement synchrone pour les petites listes
-        await processMetaAPIEstimates(projectId, targeting_spec, '');
+        const baseUrl = req.protocol + '://' + req.get('host');
+        await processMetaAPIEstimates(projectId, targeting_spec, baseUrl);
         console.log(`✅ Synchronous processing completed for project ${projectId}`);
       } catch (error) {
         console.error(`❌ Synchronous processing failed for project ${projectId}:`, error);
