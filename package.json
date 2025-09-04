@@ -9,6 +9,9 @@
     "dev:frontend": "cd frontend && npm start",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "build": "cd frontend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm install --production",
+    "build:vercel": "npm run install:all && npm run build:frontend",
     "test": "concurrently \"cd backend && npm test\" \"cd frontend && npm test\"",
     "test:backend": "cd backend && npm test",
     "test:frontend": "cd frontend && npm test",
@@ -18,7 +21,9 @@
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose build",
     "docker:logs": "docker-compose logs -f",
-    "setup": "npm run install:all && npm run docker:up"
+    "setup": "npm run install:all && npm run docker:up",
+    "vercel:deploy": "vercel --prod",
+    "vercel:preview": "vercel"
   },
   "keywords": [
     "meta",
@@ -40,6 +45,9 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.2",
     "form-data": "^4.0.4"
   }
 }

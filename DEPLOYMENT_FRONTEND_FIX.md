@@ -83,3 +83,4 @@ Si des erreurs persistent :
 
 ---
 **Note**: Ce déploiement résout les problèmes de chargement des projets et simplifie la navigation en utilisant directement l'API Vercel qui fonctionne parfaitement.
+

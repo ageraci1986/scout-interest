@@ -105,3 +105,4 @@ Si des erreurs persistent après le déploiement :
 ---
 **Status** : ✅ **Corrigé et prêt pour déploiement**
 **Prochaine action** : Déployer sur Vercel quand la limite sera réinitialisée
+

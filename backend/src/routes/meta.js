@@ -4,13 +4,13 @@ const router = express.Router();
 console.log('📁 Meta routes loaded at:', new Date().toISOString());
 const metaApi = require('../config/meta-api');
 const db = require('../config/database');
-const ParallelProcessor = require('../services/parallelProcessor');
+const ParallelProcessorOptimized = require('../services/ParallelProcessorOptimized');
 
 const { RATE_LIMITS, getEnvironmentConfig, estimateProcessingTime, validateRateLimitConfig } = require('../config/rateLimits');
 const { convertAdvancedTargetingToMetaFormat, validateTargetingSpec } = require('../utils/targetingUtils');
 
-// Instance globale du processeur parallèle
-const parallelProcessor = new ParallelProcessor();
+// Instance globale du processeur parallèle optimisé
+const parallelProcessor = new ParallelProcessorOptimized();
 
 // Search interests
 router.get('/interests/search', async (req, res) => {
@@ -295,9 +295,8 @@ router.post('/batch-postal-codes-reach-estimate-v2', async (req, res) => {
       console.log('🎯 Interest groups count:', targetingSpec.interestGroups.length);
     }
     
-    // Utiliser le ParallelProcessorProduction pour un traitement RÉEL avec Meta API
-    const ParallelProcessorProduction = require('../services/parallelProcessorProduction');
-    const processor = new ParallelProcessorProduction();
+    // Utiliser le ParallelProcessorOptimized pour un traitement RÉEL avec Meta API
+    const processor = new ParallelProcessorOptimized();
     
     const result = await processor.processBatch(
       postalCodes,

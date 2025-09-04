@@ -3,38 +3,13 @@
   "builds": [
     {
       "src": "src/server.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "includeFiles": [
-          "src/**/*",
-          "package.json",
-          "package-lock.json"
-        ]
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/src/server.js"
-    },
-    {
-      "src": "/health",
-      "dest": "/src/server.js"
-    },
-    {
       "src": "/(.*)",
       "dest": "/src/server.js"
     }
-  ],
-  "functions": {
-    "src/server.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

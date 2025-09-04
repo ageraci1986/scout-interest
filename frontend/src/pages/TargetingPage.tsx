@@ -124,9 +124,13 @@ const TargetingPage: React.FC = () => {
       return;
     }
     
-    // Save targeting spec to project
+    // Show loading state
+    toast.loading('Saving targeting and starting Meta API analysis...');
+    
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      console.log('🚀 Envoi du targeting spec et lancement des appels Meta API...');
+      
+      const response = await fetch(`/api/projects/${projectId}/targeting`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -137,31 +141,38 @@ const TargetingPage: React.FC = () => {
       });
       
       if (response.ok) {
-        console.log('✅ Targeting spec saved to project');
-        toast.success('Targeting configuration saved!');
+        const result = await response.json();
+        console.log('✅ Targeting spec saved and Meta API calls triggered:', result);
+        
+        if (result.success) {
+          toast.dismiss();
+          toast.success('Targeting saved! Meta API analysis started. Redirecting to results...');
+          console.log(`🚀 Meta API processing: ${result.data?.totalProcessed || 0} postal codes`);
+          
+          // Navigate immediately after successful targeting save
+          setTimeout(() => {
+            navigate('/results', { 
+              state: { 
+                projectId: projectId,
+                filename: filename
+              }
+            });
+          }, 1000); // 1 seconde de délai pour le message de succès
+          
+        } else {
+          toast.dismiss();
+          toast.error('Failed to start Meta API analysis');
+        }
       } else {
-        console.error('❌ Failed to save targeting spec');
+        toast.dismiss();
+        console.error('❌ Failed to save targeting spec and start Meta API calls');
         toast.error('Failed to save targeting configuration');
       }
     } catch (error) {
-      console.error('❌ Error saving targeting spec:', error);
+      toast.dismiss();
+      console.error('❌ Error saving targeting spec and starting Meta API calls:', error);
       toast.error('Error saving targeting configuration');
     }
-    
-    // Get postal codes from localStorage
-    const postalCodes = JSON.parse(localStorage.getItem('uploadedPostalCodes') || '[]');
-    
-    console.log('🚀 Navigating to results with project ID:', projectId);
-    console.log('📦 Postal codes from storage:', postalCodes);
-    
-    // Navigate to results page with project ID and postal codes
-    navigate('/results', { 
-      state: { 
-        projectId: projectId,
-        postalCodes: postalCodes,
-        filename: filename
-      }
-    });
   };
 
   return (

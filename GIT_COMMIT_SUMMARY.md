@@ -91,3 +91,4 @@ Après le déploiement, l'application devrait fonctionner **parfaitement** :
 **Tag Version** : `v1.1.0-frontend-fix`  
 **Date** : 3 septembre 2025  
 **Status** : ✅ **Committed et Pushed**
+

@@ -1,25 +1,20 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+  "outputDirectory": "frontend/build",
+  "rewrites": [
     {
-      "src": "backend/src/server-vercel.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "15mb"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/src/server-vercel.js"
+      "source": "/api/:path*",
+      "destination": "/backend/src/server-vercel.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "https://frontend-g7xl4b1k6-angelo-geracis-projects.vercel.app/$1"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "SUPABASE_URL": "https://scout-interest-optimized-a9fxapxv5-angelo-geracis-projects.vercel.app",
+    "PORT": "3001"
   }
 }

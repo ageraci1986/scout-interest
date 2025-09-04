@@ -32,7 +32,7 @@ class ProjectService {
         throw new Error('Database not initialized');
       }
       
-      const { data: project, error } = await this.supabase
+      const { data: projects, error } = await this.supabase
         .from('projects')
         .insert({
           name: projectData.name || 'Untitled Project',
@@ -44,12 +44,17 @@ class ProjectService {
           error_postal_codes: 0,
           targeting_spec: null
         })
-        .select()
-        .single();
+        .select();
       
       if (error) {
         throw error;
       }
+      
+      if (!projects || projects.length === 0) {
+        throw new Error('Failed to create project');
+      }
+      
+      const project = projects[0];
       
       console.log('✅ Project created in database:', project.id);
       return { success: true, project };
@@ -68,14 +73,39 @@ class ProjectService {
         throw new Error('Database not initialized');
       }
       
-      const { data: project, error } = await this.supabase
+      const { data: projects, error } = await this.supabase
         .from('projects')
         .select('*')
-        .eq('id', projectId)
-        .single();
+        .eq('id', projectId);
       
       if (error) {
         throw error;
+      }
+      
+      if (!projects || projects.length === 0) {
+        throw new Error(`Project with ID ${projectId} not found`);
+      }
+      
+      const project = projects[0];
+      
+      // Récupérer aussi les résultats de traitement
+      try {
+        const { data: results, error: resultsError } = await this.supabase
+          .from('processing_results')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('processed_at', { ascending: false });
+        
+        if (!resultsError && results) {
+          project.results = results;
+          console.log(`✅ Retrieved ${results.length} results for project ${projectId}`);
+        } else {
+          project.results = [];
+          console.log(`⚠️ No results found for project ${projectId}`);
+        }
+      } catch (resultsError) {
+        console.error('❌ Error fetching results:', resultsError);
+        project.results = [];
       }
       
       console.log('✅ Project retrieved from database:', project.id);
@@ -180,25 +210,37 @@ class ProjectService {
   // Mettre à jour un projet
   async updateProject(projectId, updateData) {
     try {
-      const updateFields = [];
-      const updateValues = [];
-
-      for (const [key, value] of Object.entries(updateData)) {
-        if (key !== 'id') {
-          updateFields.push(`${key} = ?`);
-          updateValues.push(value);
-        }
-      }
-
-      updateFields.push('updated_at = datetime(\'now\')');
-      updateValues.push(projectId);
-
-      const sql = `UPDATE projects SET ${updateFields.join(', ')} WHERE id = ?`;
-      await this.db.run(sql, updateValues);
-
-      // Récupérer le projet mis à jour
-      const project = await this.db.get('SELECT * FROM projects WHERE id = ?', [projectId]);
+      console.log('📋 Updating project:', projectId, 'with data:', updateData);
       
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
+      // Préparer les données de mise à jour
+      const updateFields = { ...updateData };
+      
+      // Convertir targeting_spec en JSON si nécessaire
+      if (updateFields.targeting_spec && typeof updateFields.targeting_spec === 'object') {
+        updateFields.targeting_spec = JSON.stringify(updateFields.targeting_spec);
+      }
+      
+      const { data: projects, error } = await this.supabase
+        .from('projects')
+        .update(updateFields)
+        .eq('id', projectId)
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!projects || projects.length === 0) {
+        throw new Error(`Project with ID ${projectId} not found`);
+      }
+      
+      const project = projects[0];
+      
+      console.log('✅ Project updated in database:', project.id);
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error updating project:', error);
@@ -209,11 +251,27 @@ class ProjectService {
   // Supprimer un projet
   async deleteProject(projectId) {
     try {
+      console.log('📋 Deleting project:', projectId);
+      
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
       // Supprimer d'abord les résultats de traitement
-      await this.db.run('DELETE FROM processing_results WHERE project_id = $1', [projectId]);
+      await this.supabase
+        .from('processing_results')
+        .delete()
+        .eq('project_id', projectId);
       
       // Puis supprimer le projet
-      await this.db.run('DELETE FROM projects WHERE id = $1', [projectId]);
+      const { error } = await this.supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      
+      if (error) {
+        throw error;
+      }
       
       console.log(`✅ Project ${projectId} deleted successfully`);
       return { success: true };
@@ -261,6 +319,52 @@ class ProjectService {
       return { success: true, project };
     } catch (error) {
       console.error('❌ Error updating project targeting spec:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Mettre à jour un résultat de traitement spécifique
+  async updateProcessingResult(projectId, postalCode, updateData) {
+    try {
+      console.log(`📋 Updating processing result for project ${projectId}, postal code ${postalCode}`);
+      
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
+      // Préparer les données de mise à jour
+      const updateFields = { ...updateData };
+      
+      // Convertir les estimations en JSON si nécessaire et mapper les noms de champs
+      if (updateFields.postalCodeOnlyEstimate && typeof updateFields.postalCodeOnlyEstimate === 'object') {
+        updateFields.postal_code_only_estimate = JSON.stringify(updateFields.postalCodeOnlyEstimate);
+        delete updateFields.postalCodeOnlyEstimate; // Supprimer l'ancien nom
+      }
+      if (updateFields.postalCodeWithTargetingEstimate && typeof updateFields.postalCodeWithTargetingEstimate === 'object') {
+        updateFields.postal_code_with_targeting_estimate = JSON.stringify(updateFields.postalCodeWithTargetingEstimate);
+        delete updateFields.postalCodeWithTargetingEstimate; // Supprimer l'ancien nom
+      }
+      
+      // Mettre à jour le résultat existant
+      const { data: results, error } = await this.supabase
+        .from('processing_results')
+        .update(updateFields)
+        .eq('project_id', projectId)
+        .eq('postal_code', postalCode)
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!results || results.length === 0) {
+        throw new Error(`Processing result not found for project ${projectId}, postal code ${postalCode}`);
+      }
+      
+      console.log(`✅ Processing result updated for postal code ${postalCode}`);
+      return { success: true, result: results[0] };
+    } catch (error) {
+      console.error('❌ Error updating processing result:', error);
       return { success: false, error: error.message };
     }
   }

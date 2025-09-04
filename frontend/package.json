@@ -53,7 +53,8 @@
     "eject": "react-scripts eject",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "vercel-build": "CI=false npm run build"
   },
   "eslintConfig": {
     "extends": [
@@ -73,5 +74,5 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "/api"
+  "proxy": "http://localhost:3001"
 }
