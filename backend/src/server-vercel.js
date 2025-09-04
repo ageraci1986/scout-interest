@@ -103,6 +103,23 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Debug endpoint pour les variables d'environnement
+app.get('/api/debug/env', (req, res) => {
+  res.json({
+    message: 'Environment variables debug',
+    timestamp: new Date().toISOString(),
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+      SUPABASE_URL_EXISTS: !!process.env.SUPABASE_URL,
+      SUPABASE_URL_PREFIX: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 50) + '...' : 'MISSING',
+      SUPABASE_ANON_KEY_EXISTS: !!process.env.SUPABASE_ANON_KEY,
+      SUPABASE_ANON_KEY_PREFIX: process.env.SUPABASE_ANON_KEY ? process.env.SUPABASE_ANON_KEY.substring(0, 20) + '...' : 'MISSING',
+      META_ACCESS_TOKEN_EXISTS: !!process.env.META_ACCESS_TOKEN,
+      DATABASE_URL_EXISTS: !!process.env.DATABASE_URL
+    }
+  });
+});
+
 // Chargement sécurisé des routes avec gestion d'erreur
 let metaRoutesLoaded = false;
 let projectRoutesLoaded = false;
