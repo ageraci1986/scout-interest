@@ -587,5 +587,202 @@ router.get('/:projectId/status', async (req, res) => {
   }
 });
 
+// Debug endpoint pour tester la sauvegarde des estimations
+router.patch('/:projectId/debug-save-estimates', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    console.log(`🧪 [DEBUG] Testing save estimates for project ${projectId}`);
+    
+    // Récupérer les codes postaux du projet
+    const postalCodesResult = await projectService.getProjectResults(projectId);
+    
+    if (!postalCodesResult.success || !postalCodesResult.results || postalCodesResult.results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No postal codes found for this project'
+      });
+    }
+
+    const results = [];
+    for (const result of postalCodesResult.results) {
+      const postalCode = result.postal_code;
+      
+      // Utiliser des valeurs mock pour tester la sauvegarde
+      const mockAudienceEstimate = Math.floor(Math.random() * 50000) + 10000; // 10k-60k
+      const mockTargetingEstimate = Math.floor(mockAudienceEstimate * 0.7); // 70% de l'audience
+      
+      console.log(`🧪 [DEBUG] ${postalCode}: Mock estimates - audience=${mockAudienceEstimate}, targeting=${mockTargetingEstimate}`);
+      
+      // Tester la sauvegarde
+      const updateResult = await projectService.updateProcessingResult(projectId, postalCode, {
+        success: true,
+        postalCodeOnlyEstimate: { audience_size: mockAudienceEstimate },
+        postalCodeWithTargetingEstimate: { audience_size: mockTargetingEstimate }
+      });
+      
+      if (updateResult.success) {
+        console.log(`✅ [DEBUG] ${postalCode}: Sauvegarde réussie`);
+        results.push({
+          postal_code: postalCode,
+          success: true,
+          audience_estimate: mockAudienceEstimate,
+          targeting_estimate: mockTargetingEstimate,
+          saved: true
+        });
+      } else {
+        console.error(`❌ [DEBUG] ${postalCode}: Erreur sauvegarde:`, updateResult.error);
+        results.push({
+          postal_code: postalCode,
+          success: false,
+          error: updateResult.error,
+          saved: false
+        });
+      }
+    }
+
+    // Mettre à jour le statut du projet
+    await projectService.updateProject(projectId, { 
+      status: 'completed',
+      processed_postal_codes: results.filter(r => r.success).length,
+      error_postal_codes: results.filter(r => !r.success).length
+    });
+
+    res.json({
+      success: true,
+      message: 'Debug save completed',
+      results: results
+    });
+
+  } catch (error) {
+    console.error('Error in debug save estimates:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Debug endpoint pour tester les variables Meta API
+router.get('/debug/meta-test/:postalCode', async (req, res) => {
+  try {
+    const { postalCode } = req.params;
+    
+    console.log(`🧪 [META-DEBUG] Testing Meta API for postal code: ${postalCode}`);
+    
+    // Test des variables d'environnement
+    const envCheck = {
+      META_ACCESS_TOKEN_EXISTS: !!process.env.META_ACCESS_TOKEN,
+      META_ACCESS_TOKEN_PREFIX: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.substring(0, 20) + '...' : 'MISSING',
+      META_AD_ACCOUNT_ID: process.env.META_AD_ACCOUNT_ID || '379481728925498'
+    };
+    
+    console.log('🔍 [META-DEBUG] Environment check:', envCheck);
+    
+    if (!process.env.META_ACCESS_TOKEN) {
+      return res.status(400).json({
+        success: false,
+        message: 'META_ACCESS_TOKEN is missing',
+        envCheck
+      });
+    }
+
+    // Test appel Meta API direct
+    const metaApi = require('../config/meta-api');
+    
+    try {
+      // 1. Test recherche du code postal
+      console.log(`🔍 [META-DEBUG] Searching for postal code: ${postalCode}`);
+      
+      const searchResponse = await metaApi.api.call(
+        'GET',
+        ['search'],
+        {
+          type: 'adgeolocation',
+          location_types: JSON.stringify(['zip']),
+          q: postalCode,
+          country_code: 'US',
+          limit: 1,
+          access_token: process.env.META_ACCESS_TOKEN
+        }
+      );
+
+      console.log(`🔍 [META-DEBUG] Search response:`, searchResponse);
+
+      if (!searchResponse.data || searchResponse.data.length === 0) {
+        return res.json({
+          success: false,
+          message: `Postal code ${postalCode} not found`,
+          envCheck,
+          searchResponse
+        });
+      }
+
+      const zipCodeData = searchResponse.data[0];
+      console.log(`✅ [META-DEBUG] Found zip code:`, zipCodeData);
+
+      // 2. Test estimation
+      const targetingSpec = {
+        geo_locations: {
+          zips: [{
+            key: zipCodeData.key,
+            name: zipCodeData.name,
+            country_code: zipCodeData.country_code
+          }]
+        },
+        age_min: 25,
+        age_max: 45,
+        genders: [1],
+        device_platforms: ['mobile', 'desktop'],
+        interests: []
+      };
+
+      console.log(`🔍 [META-DEBUG] Targeting spec:`, JSON.stringify(targetingSpec, null, 2));
+
+      const estimateResponse = await metaApi.api.call(
+        'GET',
+        [`act_${envCheck.META_AD_ACCOUNT_ID}/delivery_estimate`],
+        {
+          targeting_spec: JSON.stringify(targetingSpec),
+          access_token: process.env.META_ACCESS_TOKEN
+        }
+      );
+
+      console.log(`🔍 [META-DEBUG] Estimate response:`, estimateResponse);
+
+      const audienceEstimate = estimateResponse?.data?.users_lower_bound || estimateResponse?.data?.users_upper_bound || 0;
+
+      res.json({
+        success: true,
+        message: 'Meta API test completed successfully',
+        data: {
+          postalCode,
+          zipCodeData,
+          targetingSpec,
+          estimateResponse,
+          audienceEstimate,
+          envCheck
+        }
+      });
+
+    } catch (metaError) {
+      console.error(`❌ [META-DEBUG] Meta API error:`, metaError);
+      res.json({
+        success: false,
+        message: 'Meta API error',
+        error: metaError.message,
+        envCheck
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in meta test:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
 
