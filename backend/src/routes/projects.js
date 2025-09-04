@@ -279,62 +279,99 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
     const postalCodes = postalCodesResult.results.map(r => r.postal_code);
     console.log(`🚀 [ASYNC] Calcul des estimations Meta API pour ${postalCodes.length} codes postaux...`);
 
-    // 3. Calculer les estimations Meta API pour chaque code postal
-    const axios = require('axios');
-    // Utiliser l'URL actuelle pour éviter les problèmes avec baseUrl
-    const metaUrl = baseUrl ? `${baseUrl}/api/meta/postal-code-reach-estimate-v2` : 'https://scout-interest-2sif9bn30-angelo-geracis-projects-57159db6.vercel.app/api/meta/postal-code-reach-estimate-v2';
+    // 3. Calculer les estimations Meta API pour chaque code postal - APPEL DIRECT
+    const metaApi = require('../config/meta-api');
     const updatedResults = [];
 
     for (const postalCode of postalCodes) {
       try {
         console.log(`🔄 [ASYNC] Traitement de ${postalCode}...`);
         
-        // 1. Premier appel Meta API : Code postal seul (estimation géographique)
-        const geoResponse = await axios.post(
-          metaUrl,
-          {
-            adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
-            postalCode: postalCode,
-            targetingSpec: {
-              age_min: targeting_spec.age_min || 18,
-              age_max: targeting_spec.age_max || 65,
-              genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
-              // Pas d'intérêts pour l'estimation géographique
+        // 1. Premier appel Meta API direct : Code postal seul (estimation géographique)
+        try {
+          // Rechercher le code postal dans Meta API
+          const searchResponse = await metaApi.api.call(
+            'GET',
+            ['search'],
+            {
+              type: 'adgeolocation',
+              location_types: JSON.stringify(['zip']),
+              q: postalCode,
+              country_code: 'US',
+              limit: 1,
+              access_token: process.env.META_ACCESS_TOKEN
             }
-          },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
+          );
 
-        console.log(`🔍 [ASYNC] ${postalCode}: Réponse API géographique:`, JSON.stringify(geoResponse.data, null, 2));
+          if (!searchResponse.data || searchResponse.data.length === 0) {
+            throw new Error(`Code postal ${postalCode} non trouvé`);
+          }
+
+          const zipCodeData = searchResponse.data[0];
+          console.log(`✅ [ASYNC] ${postalCode}: Code postal trouvé:`, zipCodeData.key);
+
+          // Créer le targeting spec géographique
+          const geoTargetingSpec = {
+            geo_locations: {
+              zips: [{
+                key: zipCodeData.key,
+                name: zipCodeData.name,
+                country_code: zipCodeData.country_code
+              }]
+            },
+            age_min: targeting_spec.age_min || 18,
+            age_max: targeting_spec.age_max || 65,
+            genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
+            device_platforms: ['mobile', 'desktop'],
+            interests: [] // Pas d'intérêts pour l'estimation géographique
+          };
+
+          // Obtenir l'estimation géographique
+          const geoReachResponse = await metaApi.api.call(
+            'GET',
+            [`act_${process.env.META_AD_ACCOUNT_ID || '379481728925498'}/delivery_estimate`],
+            {
+              targeting_spec: JSON.stringify(geoTargetingSpec),
+              access_token: process.env.META_ACCESS_TOKEN
+            }
+          );
+
+          console.log(`🔍 [ASYNC] ${postalCode}: Réponse estimation géographique:`, geoReachResponse);
         
-        if (geoResponse.data?.success && geoResponse.data?.data?.reachEstimate) {
-          const geoReachData = geoResponse.data.data.reachEstimate;
-          const audienceEstimate = geoReachData.users_lower_bound || geoReachData.users_upper_bound || 0;
+        if (geoReachResponse?.data?.users_lower_bound !== undefined) {
+          const audienceEstimate = geoReachResponse.data.users_lower_bound || geoReachResponse.data.users_upper_bound || 0;
           
           console.log(`✅ [ASYNC] ${postalCode}: Estimation géographique = ${audienceEstimate}`);
           
-          // 2. Deuxième appel Meta API : Code postal + targeting (estimation avec targeting)
-          const targetingResponse = await axios.post(
-            metaUrl,
-            {
-              adAccountId: process.env.META_AD_ACCOUNT_ID || 'act_379481728925498',
-              postalCode: postalCode,
-              targetingSpec: {
-                age_min: targeting_spec.age_min || 18,
-                age_max: targeting_spec.age_max || 65,
-                genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
-                interests: targeting_spec.interests || [],
-                countries: targeting_spec.countries || ['US']
-              }
+          // 2. Deuxième appel Meta API direct : Code postal + targeting (estimation avec targeting)
+          const targetingTargetingSpec = {
+            geo_locations: {
+              zips: [{
+                key: zipCodeData.key,
+                name: zipCodeData.name,
+                country_code: zipCodeData.country_code
+              }]
             },
-            { headers: { 'Content-Type': 'application/json' } }
+            age_min: targeting_spec.age_min || 18,
+            age_max: targeting_spec.age_max || 65,
+            genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
+            device_platforms: ['mobile', 'desktop'],
+            interests: targeting_spec.interests || []
+          };
+
+          const targetingReachResponse = await metaApi.api.call(
+            'GET',
+            [`act_${process.env.META_AD_ACCOUNT_ID || '379481728925498'}/delivery_estimate`],
+            {
+              targeting_spec: JSON.stringify(targetingTargetingSpec),
+              access_token: process.env.META_ACCESS_TOKEN
+            }
           );
 
           let targetingEstimate = 0; // Valeur par défaut différente pour distinguer les cas
 
-          if (targetingResponse.data?.success && targetingResponse.data?.data?.reachEstimate) {
-            const targetingReachData = targetingResponse.data.data.reachEstimate;
-            targetingEstimate = targetingReachData.users_lower_bound || targetingReachData.users_upper_bound || 0;
+          if (targetingReachResponse?.data?.users_lower_bound !== undefined) {
+            targetingEstimate = targetingReachResponse.data.users_lower_bound || targetingReachResponse.data.users_upper_bound || 0;
             console.log(`✅ [ASYNC] ${postalCode}: Estimation avec targeting = ${targetingEstimate}`);
           } else {
             console.warn(`⚠️ [ASYNC] ${postalCode}: Impossible d'obtenir l'estimation avec targeting, utilisation de 50% de l'estimation géographique`);
@@ -364,14 +401,14 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
             audience_estimate: audienceEstimate,
             targeting_estimate: targetingEstimate
           });
-        } else {
-          console.error(`❌ [ASYNC] ${postalCode}: Réponse Meta API invalide`);
+        } catch (metaError) {
+          console.error(`❌ [ASYNC] ${postalCode}: Erreur Meta API:`, metaError.message);
           
           await projectService.updateProcessingResult(projectId, postalCode, {
             success: false,
             postalCodeOnlyEstimate: { audience_size: 0 },
             postalCodeWithTargetingEstimate: { audience_size: 0 },
-            error: 'Invalid Meta API response'
+            error: metaError.message
           });
 
           updatedResults.push({
@@ -379,7 +416,7 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
             success: false,
             audience_estimate: 0,
             targeting_estimate: 0,
-            error: 'Invalid Meta API response'
+            error: metaError.message
           });
         }
 
