@@ -134,40 +134,24 @@ export const useProject = (projectId: string | null): UseProjectReturn => {
     }
   }, [projectId, navigate]);
 
-  // Setup polling for processing projects
+  // DISABLED - Setup polling for processing projects  
   useEffect(() => {
-    if (!projectId || !isProcessing) {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      return;
+    // EMERGENCY: DISABLE ALL POLLING TO STOP RESOURCE CONSUMPTION
+    console.log('🚨 Project polling disabled to conserve Vercel resources');
+    
+    // Clear any existing polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
     }
-
-    // Initial fetch
-    fetchProject();
-
-    // Poll every 3 seconds while processing
-    pollingRef.current = setInterval(() => {
-      if (mountedRef.current && isProcessing) {
-        console.log('🔄 Polling: fetching project data...');
-        fetchProject();
-      } else {
-        console.log('🛑 Polling: project not processing, clearing interval');
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-        }
-      }
-    }, 3000);
-
+    
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
     };
-  }, [projectId, isProcessing, fetchProject]);
+  }, []);
 
   // Initial fetch when projectId changes
   useEffect(() => {

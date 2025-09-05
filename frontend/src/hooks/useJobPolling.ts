@@ -39,7 +39,7 @@ interface UseJobPollingReturn {
 export const useJobPolling = ({
   jobId: initialJobId,
   projectId,
-  enabled = true,
+  enabled = false, // DISABLED TO STOP RESOURCE CONSUMPTION
   onComplete,
   onError,
   pollingInterval = 2000 // 2 seconds
@@ -172,16 +172,14 @@ export const useJobPolling = ({
     setLoading(false);
   }, []);
 
-  // Auto-start polling if jobId or projectId is provided and enabled
+  // DISABLED - Auto-start polling if jobId or projectId is provided and enabled
   useEffect(() => {
-    if (enabled && (jobId || projectId)) {
-      startPolling(jobId, projectId);
-    }
-
+    // EMERGENCY: DISABLE ALL POLLING TO STOP RESOURCE CONSUMPTION
+    console.log('🚨 Job polling disabled to conserve Vercel resources');
     return () => {
       stopPolling();
     };
-  }, [jobId, projectId, enabled, startPolling, stopPolling]);
+  }, [stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {

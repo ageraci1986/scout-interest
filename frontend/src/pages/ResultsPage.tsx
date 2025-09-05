@@ -90,7 +90,7 @@ const ResultsPage: React.FC = () => {
   } = useJobPolling({
     jobId,
     projectId, // Fallback au cas où jobId n'est pas disponible
-    enabled: !!(jobId || projectId),
+    enabled: false, // EMERGENCY: FORCE DISABLE TO STOP RESOURCE CONSUMPTION
     onComplete: () => {
       console.log('✅ Job completed, refreshing project data');
       refetch(); // Refresh project data when job completes
