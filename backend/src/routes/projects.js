@@ -43,8 +43,15 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Récupérer un projet par ID
+// Récupérer un projet par ID - EMERGENCY DISABLED  
 router.get('/:projectId', async (req, res) => {
+  // EMERGENCY: DISABLE TO STOP RESOURCE CONSUMPTION
+  return res.status(503).json({
+    success: false,
+    message: 'Project fetching temporarily disabled to conserve resources',
+    disabled: true
+  });
+  
   try {
     const { projectId } = req.params;
     
@@ -201,8 +208,15 @@ router.delete('/:projectId', async (req, res) => {
   }
 });
 
-// Récupérer les résultats d'un projet
+// Récupérer les résultats d'un projet - EMERGENCY DISABLED
 router.get('/:projectId/results', async (req, res) => {
+  // EMERGENCY: DISABLE TO STOP RESOURCE CONSUMPTION
+  return res.status(503).json({
+    success: false,
+    message: 'Project results fetching temporarily disabled to conserve resources',
+    disabled: true
+  });
+  
   try {
     const { projectId } = req.params;
     
@@ -856,8 +870,16 @@ router.patch('/:projectId/targeting', async (req, res) => {
   }
 });
 
-// Get project processing status avec job info
+// Get project processing status - EMERGENCY DISABLED
 router.get('/:projectId/status', async (req, res) => {
+  // EMERGENCY: COMPLETELY DISABLE TO STOP RESOURCE CONSUMPTION
+  return res.status(503).json({
+    success: false,
+    message: 'Project status polling temporarily disabled to conserve resources',
+    disabled: true,
+    emergency_mode: true
+  });
+  
   try {
     const { projectId } = req.params;
     
