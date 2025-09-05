@@ -159,9 +159,28 @@ async function processMetaAnalysis(projectId, postalCodes, targeting) {
   }
   console.log(`🌍 Using country code: ${countryCode} for project ${projectId}`);
   
+  // Smart batch processing with progressive optimization and error handling
+  const BATCH_SIZE = Math.min(5, postalCodes.length); // Start conservative with max 5
+  const USE_BATCH_PROCESSING = postalCodes.length > 3; // Only use batch for 4+ codes
+  
+  if (USE_BATCH_PROCESSING) {
+    console.log(`🚀 Using batch processing: ${postalCodes.length} codes in batches of ${BATCH_SIZE}`);
+    await processBatchMode(projectId, postalCodes, targeting, countryCode, BATCH_SIZE);
+  } else {
+    console.log(`📍 Using sequential processing for ${postalCodes.length} codes`);
+    await processSequentialMode(projectId, postalCodes, targeting, countryCode);
+  }
+  
+  console.log(`🎉 Completed processing for project ${projectId}`);
+}
+
+// Sequential processing mode (reliable fallback)
+async function processSequentialMode(projectId, postalCodes, targeting, countryCode) {
+  const { getGeoAudience, getTargetingAudience } = require('../services/meta-api');
+  
   for (const postalCode of postalCodes) {
     try {
-      console.log(`📍 Processing ${postalCode} in ${countryCode}...`);
+      console.log(`📍 [SEQ] Processing ${postalCode} in ${countryCode}...`);
       
       // Update status to processing
       await supabase
@@ -188,13 +207,13 @@ async function processMetaAnalysis(projectId, postalCodes, targeting) {
         .eq('project_id', projectId)
         .eq('postal_code', postalCode);
       
-      console.log(`✅ Completed ${postalCode}: geo=${geoAudience}, targeting=${targetingAudience}`);
+      console.log(`✅ [SEQ] Completed ${postalCode}: geo=${geoAudience}, targeting=${targetingAudience}`);
       
-      // Small delay to avoid rate limiting (reduced for better performance)
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
       
     } catch (error) {
-      console.error(`❌ Error processing ${postalCode}:`, error);
+      console.error(`❌ [SEQ] Error processing ${postalCode}:`, error);
       
       // Update result with error
       await supabase
@@ -208,8 +227,133 @@ async function processMetaAnalysis(projectId, postalCodes, targeting) {
         .eq('postal_code', postalCode);
     }
   }
+}
+
+// Batch processing mode (optimized for speed)
+async function processBatchMode(projectId, postalCodes, targeting, countryCode, batchSize) {
+  const { getGeoAudience, getTargetingAudience } = require('../services/meta-api');
   
-  console.log(`🎉 Completed processing for project ${projectId}`);
+  try {
+    const totalBatches = Math.ceil(postalCodes.length / batchSize);
+    let processedCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < postalCodes.length; i += batchSize) {
+      const batch = postalCodes.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      
+      console.log(`🚀 [BATCH] Processing batch ${batchNumber}/${totalBatches}: [${batch.join(', ')}]`);
+      
+      try {
+        // Process this batch with error isolation
+        const batchResults = await processSingleBatch(projectId, batch, targeting, countryCode);
+        
+        // Count results
+        const batchSuccessful = batchResults.filter(r => r.success).length;
+        const batchErrors = batchResults.filter(r => !r.success).length;
+        
+        processedCount += batchSuccessful;
+        errorCount += batchErrors;
+        
+        console.log(`✅ [BATCH] Batch ${batchNumber} completed: ${batchSuccessful} successful, ${batchErrors} errors`);
+        
+      } catch (batchError) {
+        console.error(`❌ [BATCH] Batch ${batchNumber} failed completely, falling back to sequential:`, batchError);
+        
+        // Fallback to sequential processing for this batch
+        await processSequentialMode(projectId, batch, targeting, countryCode);
+        processedCount += batch.length; // Assume sequential will handle errors individually
+      }
+      
+      // Delay between batches
+      if (i + batchSize < postalCodes.length) {
+        console.log(`⏱️ [BATCH] Waiting 300ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+    
+    console.log(`🎯 [BATCH] Final results: ${processedCount} processed, ${errorCount} errors`);
+    
+  } catch (error) {
+    console.error(`💥 [BATCH] Batch processing failed completely, falling back to sequential:`, error);
+    
+    // Complete fallback to sequential processing
+    await processSequentialMode(projectId, postalCodes, targeting, countryCode);
+  }
+}
+
+// Process a single batch with full error isolation
+async function processSingleBatch(projectId, batch, targeting, countryCode) {
+  const { getGeoAudience, getTargetingAudience } = require('../services/meta-api');
+  
+  // Create individual promises for each postal code with full error handling
+  const batchPromises = batch.map(async (postalCode) => {
+    try {
+      console.log(`📍 [BATCH] Processing ${postalCode}...`);
+      
+      // Update status to processing
+      await supabase
+        .from('results')
+        .update({ status: 'processing' })
+        .eq('project_id', projectId)
+        .eq('postal_code', postalCode);
+      
+      // Process both calls concurrently but with individual error handling
+      let geoAudience, targetingAudience;
+      
+      try {
+        // Try parallel execution first
+        [geoAudience, targetingAudience] = await Promise.all([
+          getGeoAudience(postalCode, countryCode),
+          getTargetingAudience(postalCode, targeting, countryCode)
+        ]);
+      } catch (parallelError) {
+        console.warn(`⚠️ [BATCH] Parallel execution failed for ${postalCode}, trying sequential:`, parallelError.message);
+        
+        // Fallback to sequential execution for this postal code
+        geoAudience = await getGeoAudience(postalCode, countryCode);
+        targetingAudience = await getTargetingAudience(postalCode, targeting, countryCode);
+      }
+      
+      // Update result
+      await supabase
+        .from('results')
+        .update({
+          geo_audience: geoAudience,
+          targeting_audience: targetingAudience,
+          status: 'completed',
+          processed_at: new Date().toISOString()
+        })
+        .eq('project_id', projectId)
+        .eq('postal_code', postalCode);
+      
+      console.log(`✅ [BATCH] Completed ${postalCode}: geo=${geoAudience}, targeting=${targetingAudience}`);
+      return { postalCode, success: true, geoAudience, targetingAudience };
+      
+    } catch (error) {
+      console.error(`❌ [BATCH] Error processing ${postalCode}:`, error);
+      
+      try {
+        // Update result with error
+        await supabase
+          .from('results')
+          .update({
+            status: 'error',
+            error_message: error.message,
+            processed_at: new Date().toISOString()
+          })
+          .eq('project_id', projectId)
+          .eq('postal_code', postalCode);
+      } catch (dbError) {
+        console.error(`💥 [BATCH] Failed to update error status for ${postalCode}:`, dbError);
+      }
+      
+      return { postalCode, success: false, error: error.message };
+    }
+  });
+  
+  // Wait for all postal codes in the batch with timeout protection
+  return await Promise.all(batchPromises);
 }
 
 // DELETE /api/projects/:id - Delete project and all related data

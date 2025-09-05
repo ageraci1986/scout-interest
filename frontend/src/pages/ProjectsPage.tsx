@@ -157,14 +157,24 @@ const ProjectsPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Manage your Meta audience analysis projects</p>
         </div>
         
-        <Button
-          onClick={handleCreateProject}
-          variant="primary"
-          className="flex items-center space-x-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>New Project</span>
-        </Button>
+        <div className="flex items-center space-x-3">
+          <Button
+            onClick={fetchProjects}
+            variant="secondary"
+            size="sm"
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </Button>
+          <Button
+            onClick={handleCreateProject}
+            variant="primary"
+            className="flex items-center space-x-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>New Project</span>
+          </Button>
+        </div>
       </div>
 
       {/* Projects List */}
