@@ -99,22 +99,32 @@ async function getTargetingAudience(postalCode, targetingCriteria, countryCode =
     delete cleanTargetingCriteria.geo_locations;
     delete cleanTargetingCriteria.countries;
     
-    // Handle interestGroups conversion
+    // Handle interestGroups conversion with proper AND logic using flexible_spec
     if (cleanTargetingCriteria.interestGroups && Array.isArray(cleanTargetingCriteria.interestGroups)) {
-      const allInterests = [];
+      // Use flexible_spec for AND logic between interest groups
+      const flexibleSpec = [];
+      
       for (const group of cleanTargetingCriteria.interestGroups) {
         if (group.interests && Array.isArray(group.interests)) {
-          for (const interest of group.interests) {
-            allInterests.push({
-              id: interest.id,
-              name: interest.name
+          // Each group becomes an OR clause within the AND logic
+          const groupInterests = group.interests.map(interest => ({
+            id: interest.id,
+            name: interest.name
+          }));
+          
+          if (groupInterests.length > 0) {
+            flexibleSpec.push({
+              interests: groupInterests
             });
           }
         }
       }
-      if (allInterests.length > 0) {
-        cleanTargetingCriteria.interests = allInterests;
+      
+      if (flexibleSpec.length > 0) {
+        cleanTargetingCriteria.flexible_spec = flexibleSpec;
+        console.log('🎯 Using flexible_spec for AND logic:', JSON.stringify(flexibleSpec, null, 2));
       }
+      
       delete cleanTargetingCriteria.interestGroups;
     }
     
