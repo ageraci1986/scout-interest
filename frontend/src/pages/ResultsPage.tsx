@@ -30,7 +30,23 @@ const ResultsPage: React.FC = () => {
   const projectId = urlProjectId || stateProjectId || currentProject?.id;
 
   // Get job ID from location state (passed from TargetingPage after job creation)
-  const jobId = location.state?.jobId;
+  let jobId = location.state?.jobId;
+  
+  // FALLBACK: Récupérer depuis sessionStorage si pas dans location.state
+  if (!jobId) {
+    try {
+      const redirectData = sessionStorage.getItem('redirectData');
+      if (redirectData) {
+        const parsedData = JSON.parse(redirectData);
+        jobId = parsedData.jobId;
+        console.log('🔄 [RESULTS] Retrieved data from sessionStorage:', parsedData);
+        // Nettoyer après usage
+        sessionStorage.removeItem('redirectData');
+      }
+    } catch (error) {
+      console.log('⚠️ [RESULTS] Could not parse sessionStorage redirectData');
+    }
+  }
 
   // Debug logs
   console.log('🔍 [RESULTS] ResultsPage - Project ID sources:', {

@@ -111,6 +111,8 @@ const TargetingPage: React.FC = () => {
   // Handle form submission
   const handleSubmit = async () => {
     console.log('🚀 [SUBMIT] Starting form submission...', { projectId, filename });
+    console.log('🚀 [SUBMIT] Current URL:', window.location.href);
+    console.log('🚀 [SUBMIT] Project ID type:', typeof projectId, 'Value:', projectId);
     
     const totalInterests = interestGroups.reduce((total, group) => total + group.interests.length, 0);  
     // Permettre le targeting sans intérêts (targeting géographique uniquement)
@@ -131,10 +133,13 @@ const TargetingPage: React.FC = () => {
     
     try {
       // 1. First save the targeting spec to the project
-      console.log('🚀 Saving targeting spec...');
+      console.log('🚀 [API] Saving targeting spec...');
       toast.loading('Saving targeting configuration...');
       
-      const updateResponse = await fetch(`/api/projects/${parseInt(projectId)}`, {
+      const updateUrl = `/api/projects/${parseInt(projectId)}`;
+      console.log('🔍 [API] PATCH URL:', updateUrl);
+      
+      const updateResponse = await fetch(updateUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -144,16 +149,28 @@ const TargetingPage: React.FC = () => {
         })
       });
       
+      console.log('🔍 [API] PATCH response status:', updateResponse.status);
+      console.log('🔍 [API] PATCH response ok:', updateResponse.ok);
+      
       if (!updateResponse.ok) {
-        throw new Error('Failed to save targeting configuration');
+        const errorText = await updateResponse.text();
+        console.error('❌ [API] PATCH failed:', errorText);
+        throw new Error(`Failed to save targeting configuration: ${errorText}`);
       }
       
+      const updateResult = await updateResponse.json();
+      console.log('✅ [API] PATCH success:', updateResult);
+      
       // 2. Create async job for Meta API processing
-      console.log('🚀 Creating async processing job...');
+      console.log('🚀 [API] Creating async processing job...');
       toast.dismiss();
       toast.loading('Starting background processing...');
       
-      const jobResponse = await fetch('/api/jobs/start', {
+      const jobUrl = '/api/jobs/start';
+      console.log('🔍 [API] POST URL:', jobUrl);
+      console.log('🔍 [API] POST body:', { projectId: parseInt(projectId), targetingSpec: advancedTargetingSpec });
+      
+      const jobResponse = await fetch(jobUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,13 +181,17 @@ const TargetingPage: React.FC = () => {
         })
       });
       
+      console.log('🔍 [API] POST response status:', jobResponse.status);
+      console.log('🔍 [API] POST response ok:', jobResponse.ok);
+      
       if (!jobResponse.ok) {
         const errorText = await jobResponse.text();
+        console.error('❌ [API] POST failed:', errorText);
         throw new Error(`Failed to start processing job: ${errorText}`);
       }
       
       const jobResult = await jobResponse.json();
-      console.log('✅ Job created successfully:', jobResult);
+      console.log('✅ [API] POST success:', jobResult);
       
       // 3. Trigger job processing immediately
       console.log('🚀 Triggering job worker...');
@@ -209,36 +230,31 @@ const TargetingPage: React.FC = () => {
       }
       
       console.log('🚀 [REDIRECT] Starting navigation to:', `/results/${targetProjectId}`);
+      console.log('🚀 [REDIRECT] Current location:', window.location.pathname);
+      console.log('🚀 [REDIRECT] Navigate function available:', typeof navigate);
       
-      try {
-        navigate(`/results/${targetProjectId}`, { 
-          state: { 
-            projectId: targetProjectId,
-            filename: filename,
-            jobId: targetJobId,
-            jobStatus: 'processing'
-          },
-          replace: true // Utiliser replace pour éviter les problèmes de navigation
-        });
-        
-        console.log('✅ [REDIRECT] Navigation called successfully');
-        
-        // Fallback au cas où navigate ne fonctionne pas
-        setTimeout(() => {
-          if (window.location.pathname !== `/results/${targetProjectId}`) {
-            console.log('⚠️ [REDIRECT] Navigate failed, using window.location.href as fallback');
-            window.location.href = `/results/${targetProjectId}`;
-          }
-        }, 500);
-        
-      } catch (error) {
-        console.error('❌ [REDIRECT] Navigation failed:', error);
-        toast.error('Failed to redirect to results page');
-        
-        // Fallback direct
-        console.log('🔄 [REDIRECT] Using window.location.href fallback due to error');
-        window.location.href = `/results/${targetProjectId}`;
-      }
+      // FORCER LA REDIRECTION IMMÉDIATEMENT avec window.location.href
+      console.log('🔄 [REDIRECT] FORCING immediate redirect with window.location.href');
+      const targetUrl = `/results/${targetProjectId}`;
+      
+      // Sauvegarder les données dans sessionStorage pour la page de destination
+      sessionStorage.setItem('redirectData', JSON.stringify({
+        projectId: targetProjectId,
+        filename: filename,
+        jobId: targetJobId,
+        jobStatus: 'processing'
+      }));
+      
+      // Redirection FORCÉE
+      window.location.href = targetUrl;
+      
+      // Au cas où window.location.href ne marche pas non plus (très rare)
+      setTimeout(() => {
+        if (window.location.pathname !== targetUrl) {
+          console.log('⚠️ [REDIRECT] Even window.location.href failed, trying window.location.replace');
+          window.location.replace(targetUrl);
+        }
+      }, 100);
       
     } catch (error) {
       toast.dismiss();
