@@ -15,6 +15,7 @@ export interface ProjectData {
     postal_code: string;
     success: boolean;
     audience_estimate: number;
+    targeting_estimate: number;
     error?: string;
   }>;
 }

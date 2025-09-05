@@ -13,7 +13,8 @@ class ParallelProcessorOptimized {
     this.metaApi = metaApi;
     
     if (!this.metaApi.isConfigured) {
-      console.warn('⚠️ Meta API non configurée, le traitement utilisera des données mock');
+      console.error('❌ Meta API non configurée - Impossible de traiter les codes postaux sans clés Meta API valides');
+      throw new Error('Meta API not configured. Cannot process postal codes without valid Meta API credentials.');
     }
 
     this.rateLimiter = new Bottleneck({

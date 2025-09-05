@@ -59,13 +59,13 @@ const Pagination: React.FC<PaginationProps> = ({
     <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-gray-200">
       <div className="flex items-center space-x-4">
         <div className="text-sm text-gray-700">
-          Affichage de <span className="font-medium">{startItem}</span> à{' '}
-          <span className="font-medium">{endItem}</span> sur{' '}
-          <span className="font-medium">{totalItems.toLocaleString()}</span> résultats
+          Showing <span className="font-medium">{startItem}</span> to{' '}
+          <span className="font-medium">{endItem}</span> of{' '}
+          <span className="font-medium">{totalItems.toLocaleString()}</span> results
         </div>
         
         <div className="flex items-center space-x-2">
-          <label className="text-sm text-gray-700">Par page:</label>
+          <label className="text-sm text-gray-700">Per page:</label>
           <select
             value={itemsPerPage}
             onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
@@ -87,7 +87,7 @@ const Pagination: React.FC<PaginationProps> = ({
           disabled={currentPage === 1}
           className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Précédent
+          Previous
         </button>
 
         <div className="flex items-center space-x-1">
@@ -114,7 +114,7 @@ const Pagination: React.FC<PaginationProps> = ({
           disabled={currentPage === totalPages}
           className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Suivant
+          Next
         </button>
       </div>
     </div>

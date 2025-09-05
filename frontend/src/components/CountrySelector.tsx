@@ -137,7 +137,7 @@ const CountrySelector: React.FC<CountrySelectorProps> = ({
   return (
     <div className={`space-y-2 ${className}`}>
       <label className="block text-sm font-medium text-gray-700">
-        Pays pour le ciblage des codes postaux
+        Country for postal code targeting
       </label>
       <select
         value={selectedCountry}
@@ -151,7 +151,7 @@ const CountrySelector: React.FC<CountrySelectorProps> = ({
         ))}
       </select>
       <p className="text-xs text-gray-500">
-        Sélectionnez le pays pour lequel vous souhaitez analyser les codes postaux
+        Select the country for which you want to analyze postal codes
       </p>
     </div>
   );

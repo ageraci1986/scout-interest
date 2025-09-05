@@ -47,87 +47,45 @@ router.post('/file/json', async (req, res) => {
     
     const projectId = projectResult.project.id.toString();
     
-    // Traitement synchrone immédiat avec Meta API
-    console.log('🚀 Traitement synchrone immédiat avec Meta API...');
+    // Sauvegarder les codes postaux uniquement - Meta API sera appelé lors de la validation targeting
+    console.log('💾 Saving postal codes to database...');
     
     let postalCodeResults = [];
     
-    // Traiter chaque code postal immédiatement avec Meta API
+    // Sauvegarder chaque code postal dans la base de données
     for (const code of postalCodes) {
       try {
-        console.log(`🔍 Traitement de ${code} avec Meta API...`);
+        console.log(`💾 Saving postal code ${code}...`);
         
-        // Appeler directement l'endpoint Meta API pour ce code postal
-        const axios = require('axios');
-        const metaResponse = await axios.post(
-          '/api/meta/postal-code-reach-estimate-v2',
-          {
-            adAccountId: 'act_379481728925498',
-            postalCode: code,
-            targetingSpec: {
-              age_min: 18,
-              age_max: 65,
-              genders: [1, 2],
-              interests: [
-                { id: "6003985771306", name: "Technology (computers and electronics)" }
-              ]
-            }
-          },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-        
-        if (metaResponse.data?.success && metaResponse.data?.data?.reachEstimate) {
-          const reachData = metaResponse.data.data.reachEstimate;
-          const audienceEstimate = reachData.users_lower_bound || reachData.users_upper_bound || 0;
-          const targetingEstimate = Math.floor(audienceEstimate * 0.1); // 10% avec targeting
-          
-          console.log(`✅ ${code}: audience=${audienceEstimate}, targeting=${targetingEstimate}`);
-          
-          // Sauvegarder le résultat dans Supabase
-          await projectService.saveProcessingResults(projectId, [{
-            postalCode: code,
-            countryCode: 'US',
-            success: true,
-            postalCodeOnlyEstimate: { audience_size: audienceEstimate },
-            postalCodeWithTargetingEstimate: { audience_size: targetingEstimate }
-          }]);
-          
-          postalCodeResults.push({
-            id: Math.random().toString(36).substr(2, 9),
-            postal_code: code,
-            success: true,
-            audience_estimate: audienceEstimate,
-            targeting_estimate: targetingEstimate
-          });
-          
-        } else {
-          throw new Error('Invalid Meta API response');
-        }
-        
-        // Délai entre les appels pour respecter les rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-      } catch (error) {
-        console.error(`❌ Erreur traitement ${code}:`, error.message);
-        
-        // Fallback avec données mock
-        const audienceEstimate = Math.floor(Math.random() * 100000) + 1000;
-        const targetingEstimate = Math.floor(Math.random() * 10000) + 100;
-        
+        // Sauvegarder le code postal dans Supabase (sans estimations Meta API)
         await projectService.saveProcessingResults(projectId, [{
           postalCode: code,
           countryCode: 'US',
           success: true,
-          postalCodeOnlyEstimate: { audience_size: audienceEstimate },
-          postalCodeWithTargetingEstimate: { audience_size: targetingEstimate }
+          postalCodeOnlyEstimate: { audience_size: 0 }, // Sera rempli lors du targeting
+          postalCodeWithTargetingEstimate: { audience_size: 0 } // Sera rempli lors du targeting
         }]);
         
         postalCodeResults.push({
           id: Math.random().toString(36).substr(2, 9),
           postal_code: code,
           success: true,
-          audience_estimate: audienceEstimate,
-          targeting_estimate: targetingEstimate
+          audience_estimate: 0, // Sera calculé lors du targeting
+          targeting_estimate: 0 // Sera calculé lors du targeting
+        });
+        
+        console.log(`✅ Postal code ${code} saved successfully`);
+        
+      } catch (error) {
+        console.error(`❌ Error saving postal code ${code}:`, error.message);
+        
+        postalCodeResults.push({
+          id: Math.random().toString(36).substr(2, 9),
+          postal_code: code,
+          success: false,
+          audience_estimate: 0,
+          targeting_estimate: 0,
+          error: error.message
         });
       }
     }
@@ -141,7 +99,7 @@ router.post('/file/json', async (req, res) => {
         total_postal_codes: postalCodes.length,
         processed_postal_codes: successfulCount,
         error_postal_codes: errorCount,
-        status: 'active'
+        status: 'pending' // En attente de validation targeting
       });
       
       console.log(`✅ Project updated: ${successfulCount} successful, ${errorCount} errors`);
@@ -156,13 +114,13 @@ router.post('/file/json', async (req, res) => {
     // Retourner la structure attendue par le frontend
     res.json({
       success: true,
-      message: 'File uploaded and processed successfully',
+      message: 'File uploaded successfully. Postal codes saved. Meta API estimates will be calculated when you validate targeting.',
       project_id: projectId,
       results: results,
       summary: {
         total: postalCodes.length,
-        success: postalCodes.length,
-        error: 0
+        success: postalCodeResults.filter(r => r.success).length,
+        error: postalCodeResults.filter(r => !r.success).length
       }
     });
     

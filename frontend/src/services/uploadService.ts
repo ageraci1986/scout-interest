@@ -90,7 +90,7 @@ class UploadService {
     }
   }
 
-  // Extraire les codes postaux d'un fichier (simulation)
+  // Extraire les codes postaux d'un fichier CSV
   private async extractPostalCodesFromFile(file: File): Promise<string[]> {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -98,15 +98,52 @@ class UploadService {
       reader.onload = (e) => {
         try {
           const content = e.target?.result as string;
-          
-          // Simulation d'extraction de codes postaux
-          // En production, vous devriez parser le fichier Excel/CSV
-          const mockPostalCodes = ['75001', '75002', '75003', '75004', '75005'];
-          
           console.log('📁 File content length:', content.length);
-          console.log('📁 Extracted postal codes:', mockPostalCodes);
           
-          resolve(mockPostalCodes);
+          // Parser le fichier CSV
+          const lines = content.split('\n').map(line => line.trim()).filter(line => line);
+          console.log('📁 Total lines found:', lines.length);
+          
+          if (lines.length === 0) {
+            console.warn('⚠️ No lines found in file');
+            resolve([]);
+            return;
+          }
+          
+          // Détecter s'il y a un header (première ligne contient "postal_code", "zip", etc.)
+          const firstLine = lines[0].toLowerCase();
+          const hasHeader = firstLine.includes('postal') || firstLine.includes('zip') || firstLine.includes('code');
+          
+          // Extraire les codes postaux (ignorer le header si présent)
+          const startIndex = hasHeader ? 1 : 0;
+          const postalCodes: string[] = [];
+          
+          for (let i = startIndex; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Gérer les CSV avec virgules ou autres délimiteurs
+            const columns = line.split(/[,;\t]/).map(col => col.trim().replace(/"/g, ''));
+            
+            // Prendre la première colonne qui ressemble à un code postal
+            for (const col of columns) {
+              if (col && /^\d{5}(-\d{4})?$/.test(col)) {
+                postalCodes.push(col);
+                break;
+              }
+            }
+          }
+          
+          // Supprimer les doublons
+          const uniquePostalCodes = Array.from(new Set(postalCodes));
+          
+          console.log('📁 Extracted postal codes:', uniquePostalCodes);
+          console.log('📁 Found', uniquePostalCodes.length, 'unique postal codes');
+          
+          if (uniquePostalCodes.length === 0) {
+            console.warn('⚠️ No valid postal codes found in file');
+          }
+          
+          resolve(uniquePostalCodes);
         } catch (error) {
           console.error('❌ Error extracting postal codes:', error);
           resolve([]);

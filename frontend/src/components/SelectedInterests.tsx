@@ -26,8 +26,8 @@ const SelectedInterests: React.FC<SelectedInterestsProps> = ({ interests, onRemo
         <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p>Aucun intérêt sélectionné</p>
-        <p className="text-sm">Recherchez et sélectionnez des intérêts pour commencer</p>
+        <p>No interests selected</p>
+        <p className="text-sm">Search and select interests to get started</p>
       </div>
     );
   }
@@ -39,17 +39,17 @@ const SelectedInterests: React.FC<SelectedInterestsProps> = ({ interests, onRemo
         <div className="flex justify-between items-center">
           <div>
             <h3 className="text-lg font-semibold text-blue-900">
-              {interests.length} intérêt{interests.length > 1 ? 's' : ''} sélectionné{interests.length > 1 ? 's' : ''}
+              {interests.length} interest{interests.length > 1 ? 's' : ''} selected
             </h3>
             <p className="text-blue-700">
-              Audience totale estimée: <span className="font-semibold">{formatAudienceSize(totalAudienceSize)}</span>
+              Total estimated audience: <span className="font-semibold">{formatAudienceSize(totalAudienceSize)}</span>
             </p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-blue-600">
               {formatAudienceSize(totalAudienceSize)}
             </div>
-            <div className="text-sm text-blue-600">personnes</div>
+            <div className="text-sm text-blue-600">people</div>
           </div>
         </div>
       </div>
@@ -83,13 +83,13 @@ const SelectedInterests: React.FC<SelectedInterestsProps> = ({ interests, onRemo
                 <div className="font-semibold text-gray-900">
                   {formatAudienceSize(interest.audience_size)}
                 </div>
-                <div className="text-xs text-gray-500">personnes</div>
+                <div className="text-xs text-gray-500">people</div>
               </div>
               
               <button
                 onClick={() => onRemoveInterest(interest.id)}
                 className="text-gray-400 hover:text-red-500 transition-colors"
-                title="Supprimer cet intérêt"
+                title="Remove this interest"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -107,7 +107,7 @@ const SelectedInterests: React.FC<SelectedInterestsProps> = ({ interests, onRemo
             onClick={() => interests.forEach(interest => onRemoveInterest(interest.id))}
             className="text-sm text-gray-500 hover:text-red-500 transition-colors"
           >
-            Supprimer tous les intérêts
+            Remove all interests
           </button>
         </div>
       )}

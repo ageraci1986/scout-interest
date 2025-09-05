@@ -12,9 +12,12 @@ class LocalDatabase {
         ssl: {
           rejectUnauthorized: false
         },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        max: 2, // Vercel optimization: Max 2 connections per function
+        min: 0, // Minimum 0 connections
+        idle: 10000, // Close idle connections after 10 seconds
+        connectionTimeout: 5000, // 5 second connection timeout
+        acquireTimeout: 5000, // 5 second acquire timeout
+        allowExitOnIdle: true, // Allow process to exit when all connections are idle
       });
       console.log('✅ Using Supabase database (DATABASE_URL provided)');
     } else {
@@ -62,6 +65,8 @@ class LocalDatabase {
         total_postal_codes INTEGER DEFAULT 0,
         processed_postal_codes INTEGER DEFAULT 0,
         error_postal_codes INTEGER DEFAULT 0,
+        targeting_spec JSONB,
+        processed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -84,10 +89,37 @@ class LocalDatabase {
       )
     `;
 
+    const createAnalysisJobsTable = `
+      CREATE TABLE IF NOT EXISTS analysis_jobs (
+        id SERIAL PRIMARY KEY,
+        project_id INTEGER NOT NULL,
+        job_id VARCHAR(255) UNIQUE NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        total_items INTEGER DEFAULT 0,
+        processed_items INTEGER DEFAULT 0,
+        failed_items INTEGER DEFAULT 0,
+        current_batch INTEGER DEFAULT 0,
+        batch_size INTEGER DEFAULT 200,
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 3,
+        meta_targeting_spec JSONB,
+        last_error TEXT,
+        next_retry_at TIMESTAMP,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+      )
+    `;
+
     const createIndexes = [
       'CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_processing_results_project_id ON processing_results(project_id)',
-      'CREATE INDEX IF NOT EXISTS idx_processing_results_postal_code ON processing_results(postal_code)'
+      'CREATE INDEX IF NOT EXISTS idx_processing_results_postal_code ON processing_results(postal_code)',
+      'CREATE INDEX IF NOT EXISTS idx_analysis_jobs_project_id ON analysis_jobs(project_id)',
+      'CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_id ON analysis_jobs(job_id)',
+      'CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status ON analysis_jobs(status)'
     ];
 
     try {
@@ -96,6 +128,9 @@ class LocalDatabase {
       
       await this.run(createProcessingResultsTable);
       console.log('✅ Processing results table ready');
+      
+      await this.run(createAnalysisJobsTable);
+      console.log('✅ Analysis jobs table ready');
       
       // Créer les index séparément
       for (const indexSql of createIndexes) {

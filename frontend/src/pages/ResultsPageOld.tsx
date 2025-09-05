@@ -159,9 +159,9 @@ const ResultsPage: React.FC<ResultsPageProps> = () => {
                 postalCodesList = storedCodes;
                 console.log('✅ Using postal codes from localStorage:', postalCodesList);
               } else {
-                // Final fallback to defaults
-                postalCodesList = ['75001', '75002', '75003', '75004', '75005'];
-                console.log('⚠️ No postal codes found, using defaults:', postalCodesList);
+                // No fallback to defaults - throw error instead
+                console.error('❌ No postal codes found for project');
+                throw new Error('No postal codes found for this project');
               }
             }
             

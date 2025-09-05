@@ -30,8 +30,8 @@ const TestAPI: React.FC = () => {
     try {
       addResult('🧪 Testing Upload API...');
       
-      // Créer un fichier de test
-      const testFile = new File(['75001,75002,75003'], 'test.csv', { type: 'text/csv' });
+      // Créer un fichier de test avec de vrais codes postaux US
+      const testFile = new File(['postal_code\n10001\n90210\n60601'], 'test.csv', { type: 'text/csv' });
       
       const result = await uploadService.uploadFile(testFile);
       
@@ -66,7 +66,7 @@ const TestAPI: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">🧪 Test de l'API</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">🧪 API Test</h2>
         
         <div className="space-y-4 mb-6">
           <button
@@ -74,7 +74,7 @@ const TestAPI: React.FC = () => {
             disabled={isTesting}
             className="btn-primary disabled:opacity-50"
           >
-            {isTesting ? 'Tests en cours...' : 'Lancer Tous les Tests'}
+            {isTesting ? 'Tests in progress...' : 'Run All Tests'}
           </button>
           
           <button
@@ -82,7 +82,7 @@ const TestAPI: React.FC = () => {
             disabled={isTesting}
             className="btn-secondary disabled:opacity-50"
           >
-            Tester Projects API
+            Test Projects API
           </button>
           
           <button
@@ -90,22 +90,22 @@ const TestAPI: React.FC = () => {
             disabled={isTesting}
             className="btn-secondary disabled:opacity-50"
           >
-            Tester Upload API
+            Test Upload API
           </button>
           
           <button
             onClick={clearResults}
             className="btn-secondary"
           >
-            Effacer les Résultats
+            Clear Results
           </button>
         </div>
 
         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-          <h3 className="font-medium text-gray-900 mb-2">Résultats des Tests:</h3>
+          <h3 className="font-medium text-gray-900 mb-2">Test Results:</h3>
           <div className="space-y-1 max-h-96 overflow-y-auto">
             {testResults.length === 0 ? (
-              <p className="text-gray-500 text-sm">Aucun test exécuté</p>
+              <p className="text-gray-500 text-sm">No tests executed</p>
             ) : (
               testResults.map((result, index) => (
                 <div key={index} className="text-sm font-mono">

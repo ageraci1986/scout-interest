@@ -9,13 +9,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const navigation = [
-    { name: 'Accueil', href: '/' },
+    { name: 'Home', href: '/' },
     { name: 'Upload', href: '/upload' },
     { name: 'Targeting', href: '/targeting' },
-    { name: 'Analyse', href: '/analysis' },
-    { name: 'Résultats', href: '/results' },
-    { name: '📁 Mes Projets', href: '/projects' },
-    { name: '⚙️ Paramètres', href: '/settings' },
+    { name: 'Analysis', href: '/analysis' },
+    { name: 'Results', href: '/results' },
+    { name: '📁 My Projects', href: '/projects' },
+    { name: '⚙️ Settings', href: '/settings' },
   ];
 
   return (

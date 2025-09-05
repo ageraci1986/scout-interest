@@ -305,23 +305,39 @@ class ProjectService {
   // Mettre à jour le targeting spec d'un projet
   async updateProjectTargetingSpec(projectId, targetingSpec) {
     try {
-      await this.db.run(
-        'UPDATE projects SET targeting_spec = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [JSON.stringify(targetingSpec), projectId]
-      );
-
-      // Récupérer le projet mis à jour
-      const project = await this.db.get('SELECT * FROM projects WHERE id = $1', [projectId]);
+      console.log(`📋 Updating targeting spec for project ${projectId}`);
       
-      if (project) {
-        // Parser le targeting_spec JSON seulement s'il est une chaîne
-        if (project.targeting_spec && typeof project.targeting_spec === 'string') {
-          try {
-            project.targeting_spec = JSON.parse(project.targeting_spec);
-          } catch (parseError) {
-            console.warn('⚠️ Could not parse targeting_spec JSON:', parseError);
-            project.targeting_spec = null;
-          }
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+      
+      // Update project with targeting spec
+      const { data: projects, error } = await this.supabase
+        .from('projects')
+        .update({
+          targeting_spec: JSON.stringify(targetingSpec),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId)
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!projects || projects.length === 0) {
+        throw new Error(`Project with ID ${projectId} not found`);
+      }
+      
+      const project = projects[0];
+      
+      // Parse the targeting_spec JSON if it's a string
+      if (project.targeting_spec && typeof project.targeting_spec === 'string') {
+        try {
+          project.targeting_spec = JSON.parse(project.targeting_spec);
+        } catch (parseError) {
+          console.warn('⚠️ Could not parse targeting_spec JSON:', parseError);
+          project.targeting_spec = null;
         }
       }
       
@@ -382,19 +398,41 @@ class ProjectService {
   // Get project processing status
   async getProjectStatus(projectId) {
     try {
-      // Get project info
-      const project = await this.db.get('SELECT * FROM projects WHERE id = $1', [projectId]);
+      console.log(`📊 Getting status for project ${projectId}`);
       
-      if (!project) {
+      if (!this.supabase) {
+        throw new Error('Database not initialized');
+      }
+
+      // Get project info
+      const { data: projects, error: projectError } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId);
+      
+      if (projectError) {
+        throw projectError;
+      }
+      
+      if (!projects || projects.length === 0) {
         return { success: false, error: 'Project not found' };
       }
 
+      const project = projects[0];
+
       // Get processing results count
-      const results = await this.db.all('SELECT * FROM processing_results WHERE project_id = $1', [projectId]);
+      const { data: results, error: resultsError } = await this.supabase
+        .from('processing_results')
+        .select('*')
+        .eq('project_id', projectId);
       
-      const total = results.length;
-      const completed = results.filter(r => r.success).length;
-      const errors = results.filter(r => !r.success).length;
+      if (resultsError) {
+        throw resultsError;
+      }
+      
+      const total = results ? results.length : 0;
+      const completed = results ? results.filter(r => r.success).length : 0;
+      const errors = results ? results.filter(r => !r.success).length : 0;
       const success = completed;
 
       const status = {
@@ -402,7 +440,14 @@ class ProjectService {
         completed,
         success,
         errors,
-        isProcessing: total > 0 && completed < total
+        isProcessing: total > 0 && completed < total,
+        project_info: {
+          id: project.id,
+          name: project.name,
+          status: project.status,
+          created_at: project.created_at,
+          updated_at: project.updated_at
+        }
       };
 
       console.log(`📊 Project ${projectId} status:`, status);

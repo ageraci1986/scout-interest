@@ -75,7 +75,7 @@ const RateLimitSettings: React.FC = () => {
       toast.success(`Environnement mis à jour vers ${environment}`);
     } catch (error) {
       console.error('Error updating environment:', error);
-      toast.error('Erreur lors de la mise à jour de l\'environnement');
+      toast.error('Error updating environment');
     } finally {
       setUpdating(false);
     }
@@ -106,7 +106,7 @@ const RateLimitSettings: React.FC = () => {
   if (!config) {
     return (
       <div className="card">
-        <p className="text-red-600">Erreur: Impossible de charger la configuration</p>
+        <p className="text-red-600">Error: Unable to load configuration</p>
       </div>
     );
   }
@@ -115,12 +115,12 @@ const RateLimitSettings: React.FC = () => {
     <div className="space-y-6">
       {/* Configuration actuelle */}
       <div className="card">
-        <h2 className="text-xl font-semibold mb-4">⚙️ Configuration des Limitations API</h2>
+        <h2 className="text-xl font-semibold mb-4">⚙️ API Rate Limits Configuration</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Environnement actuel
+              Current environment
             </label>
             <select
               value={selectedEnvironment}
@@ -138,7 +138,7 @@ const RateLimitSettings: React.FC = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Environnement sélectionné
+              Selected environment
             </label>
             <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md">
               <strong>{config.availableEnvironments[selectedEnvironment]?.name}</strong>
@@ -155,11 +155,11 @@ const RateLimitSettings: React.FC = () => {
             <h3 className="text-lg font-medium mb-3">📊 Reach Estimate API</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Appels/minute:</span>
+                <span>Calls/minute:</span>
                 <span className="font-mono">{config.currentConfig.reachEstimate.callsPerMinute}</span>
               </div>
               <div className="flex justify-between">
-                <span>Appels/heure:</span>
+                <span>Calls/hour:</span>
                 <span className="font-mono">{config.currentConfig.reachEstimate.callsPerHour.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
@@ -167,7 +167,7 @@ const RateLimitSettings: React.FC = () => {
                 <span className="font-mono">{config.currentConfig.reachEstimate.maxConcurrent}</span>
               </div>
               <div className="flex justify-between">
-                <span>Délai min (ms):</span>
+                <span>Min delay (ms):</span>
                 <span className="font-mono">{config.currentConfig.reachEstimate.minTimeBetweenCalls}</span>
               </div>
             </div>
@@ -177,11 +177,11 @@ const RateLimitSettings: React.FC = () => {
             <h3 className="text-lg font-medium mb-3">🔍 Search API</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Appels/minute:</span>
+                <span>Calls/minute:</span>
                 <span className="font-mono">{config.currentConfig.search.callsPerMinute}</span>
               </div>
               <div className="flex justify-between">
-                <span>Appels/heure:</span>
+                <span>Calls/hour:</span>
                 <span className="font-mono">{config.currentConfig.search.callsPerHour.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
@@ -189,7 +189,7 @@ const RateLimitSettings: React.FC = () => {
                 <span className="font-mono">{config.currentConfig.search.maxConcurrent}</span>
               </div>
               <div className="flex justify-between">
-                <span>Délai min (ms):</span>
+                <span>Min delay (ms):</span>
                 <span className="font-mono">{config.currentConfig.search.minTimeBetweenCalls}</span>
               </div>
             </div>
@@ -199,12 +199,12 @@ const RateLimitSettings: React.FC = () => {
 
       {/* Estimateur de temps de traitement */}
       <div className="card">
-        <h2 className="text-xl font-semibold mb-4">⏱️ Estimateur de Temps de Traitement</h2>
+        <h2 className="text-xl font-semibold mb-4">⏱️ Processing Time Estimator</h2>
         
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nombre de codes postaux
+              Number of postal codes
             </label>
             <input
               type="number"
@@ -220,7 +220,7 @@ const RateLimitSettings: React.FC = () => {
               onClick={handleEstimate}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              Estimer
+              Estimate
             </button>
           </div>
         </div>
@@ -228,19 +228,19 @@ const RateLimitSettings: React.FC = () => {
         {estimate && (
           <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
             <h3 className="text-lg font-medium text-blue-900 mb-3">
-              Estimation pour {estimate.totalCodes} codes postaux
+              Estimation for {estimate.totalCodes} postal codes
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h4 className="font-medium text-blue-800 mb-2">⏱️ Temps estimé</h4>
+                <h4 className="font-medium text-blue-800 mb-2">⏱️ Estimated time</h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Minutes:</span>
                     <span className="font-mono font-medium">{estimate.estimation.estimatedMinutes}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Secondes:</span>
+                    <span>Seconds:</span>
                     <span className="font-mono font-medium">{estimate.estimation.estimatedSeconds}</span>
                   </div>
                 </div>
@@ -254,11 +254,11 @@ const RateLimitSettings: React.FC = () => {
                     <span className="font-mono font-medium">{estimate.estimation.batches}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Taille batch:</span>
+                    <span>Batch size:</span>
                     <span className="font-mono font-medium">{estimate.estimation.batchSize}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Temps/batch:</span>
+                    <span>Time/batch:</span>
                     <span className="font-mono font-medium">{estimate.estimation.timePerBatch}ms</span>
                   </div>
                 </div>

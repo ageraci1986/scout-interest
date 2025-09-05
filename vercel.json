@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/process-jobs",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "builds": [
     {
       "src": "frontend/package.json",
@@ -10,7 +16,10 @@
     },
     {
       "src": "backend/src/server-vercel.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 10
+      }
     }
   ],
   "routes": [
@@ -19,13 +28,16 @@
       "dest": "/backend/src/server-vercel.js"
     },
     {
-      "src": "/(.*)",
+      "src": "/static/(.*)",
+      "dest": "/frontend/static/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|svg|gif|woff|woff2|ttf|eot))",
       "dest": "/frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/index.html"
     }
-  ],
-  "functions": {
-    "backend/src/server-vercel.js": {
-      "maxDuration": 10
-    }
-  }
+  ]
 }

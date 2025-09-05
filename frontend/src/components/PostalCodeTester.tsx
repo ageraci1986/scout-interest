@@ -21,7 +21,7 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
 
   const handleTest = async () => {
     if (!postalCode.trim()) {
-      toast.error('Veuillez entrer un code postal');
+      toast.error('Please enter a postal code');
       return;
     }
 
@@ -44,10 +44,10 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
       );
 
       setResult(result);
-      toast.success(`Reach estimate calculé pour ${postalCode}`);
+      toast.success(`Reach estimate calculated for ${postalCode}`);
     } catch (error: any) {
       console.error('Error testing postal code:', error);
-      toast.error(error.response?.data?.message || 'Erreur lors du test du code postal');
+      toast.error(error.response?.data?.message || 'Error testing postal code');
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +60,7 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
   return (
     <div className={`bg-white rounded-lg shadow-md p-6 ${className}`}>
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        Test de Code Postal Meta
+        Meta Postal Code Test
       </h3>
       
       <div className="space-y-4">
@@ -73,7 +73,7 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
         {/* Postal Code Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Code Postal
+            Postal Code
           </label>
           <input
             type="text"
@@ -88,7 +88,7 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Âge minimum
+              Minimum age
             </label>
             <input
               type="number"
@@ -101,7 +101,7 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Âge maximum
+              Maximum age
             </label>
             <input
               type="number"
@@ -120,48 +120,48 @@ const PostalCodeTester: React.FC<PostalCodeTesterProps> = ({
           disabled={isLoading || !postalCode.trim()}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Calcul en cours...' : 'Tester le Code Postal'}
+          {isLoading ? 'Calculating...' : 'Test Postal Code'}
         </button>
 
         {/* Results */}
         {result && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-3">Résultats</h4>
+            <h4 className="font-medium text-gray-900 mb-3">Results</h4>
             
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Code postal:</span>
+                <span className="text-sm text-gray-600">Postal code:</span>
                 <span className="text-sm font-medium">{result.postalCode}</span>
               </div>
               
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Pays:</span>
+                <span className="text-sm text-gray-600">Country:</span>
                 <span className="text-sm font-medium">{result.zipCodeData.country_name}</span>
               </div>
               
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Ville:</span>
+                <span className="text-sm text-gray-600">City:</span>
                 <span className="text-sm font-medium">{result.zipCodeData.primary_city}</span>
               </div>
               
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Région:</span>
+                <span className="text-sm text-gray-600">Region:</span>
                 <span className="text-sm font-medium">{result.zipCodeData.region}</span>
               </div>
               
               <div className="border-t pt-3">
-                <h5 className="text-sm font-medium text-gray-800 mb-2">Estimation d'Audience</h5>
+                <h5 className="text-sm font-medium text-gray-800 mb-2">Audience Estimate</h5>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Taille d'audience (min):</span>
+                  <span className="text-sm text-gray-600">Audience size (min):</span>
                   <span className="text-sm font-medium text-green-600">
-                    {formatNumber(result.reachEstimate?.users_lower_bound || 0)} utilisateurs
+                    {formatNumber(result.reachEstimate?.users_lower_bound || 0)} users
                   </span>
                 </div>
                 
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Taille d'audience (max):</span>
+                  <span className="text-sm text-gray-600">Audience size (max):</span>
                   <span className="text-sm font-medium text-green-600">
-                    {formatNumber(result.reachEstimate?.users_upper_bound || 0)} utilisateurs
+                    {formatNumber(result.reachEstimate?.users_upper_bound || 0)} users
                   </span>
                 </div>
               </div>

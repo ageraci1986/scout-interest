@@ -111,11 +111,13 @@ app.get('/api/health', async (req, res) => {
 const metaRoutes = require('./routes/meta');
 const uploadRoutes = require('./routes/upload');
 const projectRoutes = require('./routes/projects');
+const jobRoutes = require('./routes/jobs');
 
 // API routes
 app.use('/api/meta', metaRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {

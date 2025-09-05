@@ -94,6 +94,9 @@ const TargetingPage: React.FC = () => {
 
   // Handle interest groups change
   const handleInterestGroupsChange = (groups: InterestGroup[]) => {
+    console.log('🎯 Interest groups updated:', groups);
+    const totalInterests = groups.reduce((total, group) => total + group.interests.length, 0);
+    console.log('🎯 Total interests:', totalInterests);
     setInterestGroups(groups);
   };
 
@@ -107,30 +110,31 @@ const TargetingPage: React.FC = () => {
 
   // Handle form submission
   const handleSubmit = async () => {
-    const totalInterests = interestGroups.reduce((total, group) => total + group.interests.length, 0);
+    console.log('🚀 [SUBMIT] Starting form submission...', { projectId, filename });
+    
+    const totalInterests = interestGroups.reduce((total, group) => total + group.interests.length, 0);  
+    // Permettre le targeting sans intérêts (targeting géographique uniquement)
     if (totalInterests === 0) {
-      toast.error('Please select at least one interest');
-      return;
+      console.log('⚠️ No interests selected, proceeding with geographic targeting only');
     }
 
     const advancedTargetingSpec = getAdvancedTargetingSpec();
-
-    console.log('Advanced targeting spec:', advancedTargetingSpec);
+    console.log('🎯 [SUBMIT] Advanced targeting spec:', advancedTargetingSpec);
     
     // Use Project ID from state (not from URL)
     if (!projectId) {
+      console.error('❌ [SUBMIT] Project ID missing');
       toast.error('Project ID missing. Please upload a file first.');
       navigate('/upload');
       return;
     }
     
-    // Show loading state
-    toast.loading('Saving targeting and starting Meta API analysis...');
-    
     try {
-      console.log('🚀 Envoi du targeting spec et lancement des appels Meta API...');
+      // 1. First save the targeting spec to the project
+      console.log('🚀 Saving targeting spec...');
+      toast.loading('Saving targeting configuration...');
       
-      const response = await fetch(`/api/projects/${projectId}/targeting`, {
+      const updateResponse = await fetch(`/api/projects/${parseInt(projectId)}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -140,38 +144,106 @@ const TargetingPage: React.FC = () => {
         })
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Targeting spec saved and Meta API calls triggered:', result);
-        
-        if (result.success) {
-          toast.dismiss();
-          toast.success('Targeting saved! Meta API analysis started. Redirecting to results...');
-          console.log(`🚀 Meta API processing: ${result.data?.totalProcessed || 0} postal codes`);
-          
-          // Navigate immediately after successful targeting save
-          setTimeout(() => {
-            navigate('/results', { 
-              state: { 
-                projectId: projectId,
-                filename: filename
-              }
-            });
-          }, 1000); // 1 seconde de délai pour le message de succès
-          
-        } else {
-          toast.dismiss();
-          toast.error('Failed to start Meta API analysis');
-        }
-      } else {
-        toast.dismiss();
-        console.error('❌ Failed to save targeting spec and start Meta API calls');
-        toast.error('Failed to save targeting configuration');
+      if (!updateResponse.ok) {
+        throw new Error('Failed to save targeting configuration');
       }
+      
+      // 2. Create async job for Meta API processing
+      console.log('🚀 Creating async processing job...');
+      toast.dismiss();
+      toast.loading('Starting background processing...');
+      
+      const jobResponse = await fetch('/api/jobs/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: parseInt(projectId),
+          targetingSpec: advancedTargetingSpec
+        })
+      });
+      
+      if (!jobResponse.ok) {
+        const errorText = await jobResponse.text();
+        throw new Error(`Failed to start processing job: ${errorText}`);
+      }
+      
+      const jobResult = await jobResponse.json();
+      console.log('✅ Job created successfully:', jobResult);
+      
+      // 3. Trigger job processing immediately
+      console.log('🚀 Triggering job worker...');
+      try {
+        fetch('/api/jobs/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).catch(error => {
+          console.warn('⚠️ Worker trigger failed (will retry via cron):', error);
+        });
+      } catch (error) {
+        console.warn('⚠️ Worker trigger failed (will retry via cron):', error);
+      }
+      
+      // 4. Immediately redirect to results page with job info
+      toast.dismiss();
+      toast.success('Processing started! Redirecting to results...');
+      
+      const targetProjectId = parseInt(projectId);
+      const targetJobId = jobResult.data?.jobId;
+      
+      console.log('🚀 [REDIRECT] Pre-navigation debug:', {
+        projectId,
+        targetProjectId,
+        jobResult,
+        targetJobId,
+        filename,
+        targetUrl: `/results/${targetProjectId}`
+      });
+      
+      // Vérifier que les données sont valides avant la redirection
+      if (!targetProjectId || isNaN(targetProjectId)) {
+        console.error('❌ [REDIRECT] Invalid projectId:', projectId);
+        toast.error('Invalid project ID. Cannot redirect to results.');
+        return;
+      }
+      
+      console.log('🚀 [REDIRECT] Starting navigation to:', `/results/${targetProjectId}`);
+      
+      try {
+        navigate(`/results/${targetProjectId}`, { 
+          state: { 
+            projectId: targetProjectId,
+            filename: filename,
+            jobId: targetJobId,
+            jobStatus: 'processing'
+          },
+          replace: true // Utiliser replace pour éviter les problèmes de navigation
+        });
+        
+        console.log('✅ [REDIRECT] Navigation called successfully');
+        
+        // Fallback au cas où navigate ne fonctionne pas
+        setTimeout(() => {
+          if (window.location.pathname !== `/results/${targetProjectId}`) {
+            console.log('⚠️ [REDIRECT] Navigate failed, using window.location.href as fallback');
+            window.location.href = `/results/${targetProjectId}`;
+          }
+        }, 500);
+        
+      } catch (error) {
+        console.error('❌ [REDIRECT] Navigation failed:', error);
+        toast.error('Failed to redirect to results page');
+        
+        // Fallback direct
+        console.log('🔄 [REDIRECT] Using window.location.href fallback due to error');
+        window.location.href = `/results/${targetProjectId}`;
+      }
+      
     } catch (error) {
       toast.dismiss();
-      console.error('❌ Error saving targeting spec and starting Meta API calls:', error);
-      toast.error('Error saving targeting configuration');
+      console.error('❌ Error in targeting submission:', error);
+      toast.error((error as Error).message || 'Error starting analysis');
     }
   };
 
@@ -331,6 +403,11 @@ const TargetingPage: React.FC = () => {
             </h2>
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
               <div><strong>Interests:</strong> {interestGroups.reduce((total, group) => total + group.interests.length, 0)} selected</div>
+              {interestGroups.map(group => group.interests.length > 0 && (
+                <div key={group.id} className="text-xs text-gray-600">
+                  {group.name}: {group.interests.map(i => i.name).join(', ')}
+                </div>
+              ))}
               <div><strong>Age:</strong> {targetingSpec.age_min} - {targetingSpec.age_max} years</div>
               <div><strong>Gender:</strong> {targetingSpec.genders?.includes('all') ? 'All' : targetingSpec.genders?.includes('1') ? 'Men' : 'Women'}</div>
               <div><strong>Country:</strong> {targetingSpec.countries?.join(', ')}</div>
@@ -350,10 +427,7 @@ const TargetingPage: React.FC = () => {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={interestGroups.reduce((total, group) => total + group.interests.length, 0) === 0}
-          className={`btn-primary px-8 py-3 ${
-            interestGroups.reduce((total, group) => total + group.interests.length, 0) === 0 ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className="btn-primary px-8 py-3"
         >
           Continue to Analysis
         </button>

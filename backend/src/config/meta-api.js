@@ -51,7 +51,7 @@ class MetaApiService {
     if (this.isConfigured) {
       console.log('✅ Meta API configurée avec les vraies clés');
     } else {
-      console.log('⚠️  Meta API non configurée, utilisation des données mock');
+      console.log('❌ Meta API non configurée - L\'application ne fonctionnera pas sans clés Meta API valides');
     }
   }
 

@@ -50,7 +50,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
         console.log('✅ Project results loaded:', result.project.results);
       } else {
         console.error('❌ Failed to load project results:', result.error);
-        toast.error('Erreur lors du chargement des résultats');
+        toast.error('Error loading results');
       }
     } catch (error) {
       console.error('❌ Error loading project results:', error);
@@ -61,7 +61,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
   };
 
   const deleteProject = async (projectId: string) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.')) {
+    if (!window.confirm('Are you sure you want to delete this project? This action is irreversible.')) {
       return;
     }
 
@@ -69,18 +69,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
       const result = await projectService.deleteProject(projectId);
       
       if (result.success) {
-        toast.success('Projet supprimé avec succès');
+        toast.success('Project deleted successfully');
         loadProjects(); // Recharger la liste
         if (selectedProject?.id === projectId) {
           setSelectedProject(null);
           setProjectResults([]);
         }
       } else {
-        toast.error(`Erreur lors de la suppression: ${result.error}`);
+        toast.error(`Error during deletion: ${result.error}`);
       }
     } catch (error) {
       console.error('❌ Error deleting project:', error);
-      toast.error('Erreur lors de la suppression du projet');
+      toast.error('Error deleting project');
     }
   };
 
@@ -109,9 +109,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
   const getStatusText = (project: Project) => {
     const successRate = getSuccessRate(project);
     if (successRate >= 80) return 'Excellent';
-    if (successRate >= 50) return 'Bon';
-    if (successRate > 0) return 'Partiel';
-    return 'Aucun résultat';
+    if (successRate >= 50) return 'Good';
+    if (successRate > 0) return 'Partial';
+    return 'No results';
   };
 
   if (loading) {
@@ -119,7 +119,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
       <div className="max-w-6xl mx-auto p-6">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement des projets...</p>
+          <p className="mt-4 text-gray-600">Loading projects...</p>
         </div>
       </div>
     );
@@ -129,14 +129,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
     <div className="max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mes Projets</h1>
-          <p className="text-gray-600 mt-2">Gérez vos projets de traitement de codes postaux</p>
+          <h1 className="text-3xl font-bold text-gray-900">My Projects</h1>
+          <p className="text-gray-600 mt-2">Manage your postal code processing projects</p>
         </div>
         <button
           onClick={() => navigate('/upload')}
           className="btn-primary"
         >
-          Nouveau Projet
+          New Project
         </button>
       </div>
 
@@ -147,13 +147,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun projet trouvé</h3>
-          <p className="text-gray-600 mb-6">Commencez par créer votre premier projet en uploadant un fichier</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
+          <p className="text-gray-600 mb-6">Start by creating your first project by uploading a file</p>
           <button
             onClick={() => navigate('/upload')}
             className="btn-primary"
           >
-            Créer un Projet
+            Create Project
           </button>
         </div>
       ) : (
@@ -162,7 +162,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Projets ({projects.length})</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Projects ({projects.length})</h2>
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {projects.map((project) => (
@@ -195,7 +195,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                       </span>
                     </div>
                     <div className="mt-2 text-xs text-gray-500">
-                      {project.total_postal_codes} codes • {project.processed_postal_codes} traités • {project.error_postal_codes} erreurs
+                      {project.total_postal_codes} codes • {project.processed_postal_codes} processed • {project.error_postal_codes} errors
                     </div>
                   </div>
                 ))}
@@ -226,34 +226,34 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                   <div className="grid grid-cols-3 gap-4 mt-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-2xl font-bold text-gray-900">{selectedProject.total_postal_codes}</div>
-                      <div className="text-sm text-gray-600">Codes postaux</div>
+                      <div className="text-sm text-gray-600">Postal codes</div>
                     </div>
                     <div className="text-center p-3 bg-green-50 rounded-lg">
                       <div className="text-2xl font-bold text-green-600">{selectedProject.processed_postal_codes}</div>
-                      <div className="text-sm text-green-600">Traités</div>
+                      <div className="text-sm text-green-600">Processed</div>
                     </div>
                     <div className="text-center p-3 bg-red-50 rounded-lg">
                       <div className="text-2xl font-bold text-red-600">{selectedProject.error_postal_codes}</div>
-                      <div className="text-sm text-red-600">Erreurs</div>
+                      <div className="text-sm text-red-600">Errors</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Résultats du traitement</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Processing results</h3>
                     <button
                       onClick={() => window.open(`/results/${selectedProject.id}`, '_blank')}
                       className="btn-secondary text-sm"
                     >
-                      Voir Détails
+                      View Details
                     </button>
                   </div>
 
                   {loadingResults ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-600">Chargement des résultats...</p>
+                      <p className="mt-2 text-gray-600">Loading results...</p>
                     </div>
                   ) : projectResults.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -261,10 +261,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Code Postal
+                              Postal Code
                             </th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Pays
+                              Country
                             </th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Statut
@@ -292,7 +292,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                                     ? 'bg-green-100 text-green-800' 
                                     : 'bg-red-100 text-red-800'
                                 }`}>
-                                  {result.success ? 'Succès' : 'Erreur'}
+                                  {result.success ? 'Success' : 'Error'}
                                 </span>
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
@@ -346,8 +346,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Sélectionnez un projet</h3>
-                <p className="text-gray-600">Cliquez sur un projet dans la liste pour voir ses détails et résultats</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a project</h3>
+                <p className="text-gray-600">Click on a project in the list to view its details and results</p>
               </div>
             )}
           </div>

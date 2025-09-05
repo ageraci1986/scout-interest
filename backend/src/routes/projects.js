@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const projectService = require('../services/projectService');
 
+// Helper function pour obtenir l'ID compte Meta correctement formaté
+function getMetaAdAccountId() {
+  const accountId = process.env.META_AD_ACCOUNT_ID || '379481728925498';
+  // Retirer le préfixe 'act_' s'il existe déjà pour éviter la duplication
+  const cleanId = accountId.startsWith('act_') ? accountId.substring(4) : accountId;
+  return `act_${cleanId}`;
+}
+
 // Créer un nouveau projet
 router.post('/', async (req, res) => {
   try {
@@ -263,6 +271,20 @@ router.post('/:projectId/results', async (req, res) => {
 async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
   try {
     console.log(`🚀 [ASYNC] Démarrage du traitement Meta API pour le projet ${projectId}`);
+    console.log(`🚀 [ASYNC] Received targeting_spec:`, JSON.stringify(targeting_spec, null, 2));
+    
+    // Transformer les interestGroups en interests simples pour Meta API
+    let interests = [];
+    if (targeting_spec.interestGroups && Array.isArray(targeting_spec.interestGroups)) {
+      interests = targeting_spec.interestGroups
+        .flatMap(group => group.interests || [])
+        .map(interest => interest.id)
+        .filter(Boolean);
+    } else if (targeting_spec.interests) {
+      interests = targeting_spec.interests;
+    }
+    
+    console.log(`🎯 [ASYNC] Extracted interests:`, interests);
     
     // Marquer le projet comme "processing" 
     await projectService.updateProject(projectId, { status: 'processing' });
@@ -310,7 +332,7 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
           const zipCodeData = searchResponse.data[0];
           console.log(`✅ [ASYNC] ${postalCode}: Code postal trouvé:`, zipCodeData.key);
 
-          // Créer le targeting spec géographique
+          // Créer le targeting spec géographique PURE (sans restrictions spécifiques)
           const geoTargetingSpec = {
             geo_locations: {
               zips: [{
@@ -319,9 +341,9 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
                 country_code: zipCodeData.country_code
               }]
             },
-            age_min: targeting_spec.age_min || 18,
-            age_max: targeting_spec.age_max || 65,
-            genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
+            age_min: 18,  // Âge minimum Meta (pas de restriction)
+            age_max: 65,  // Âge maximum Meta (pas de restriction)
+            genders: [1, 2],  // Tous les genres (pas de restriction)
             device_platforms: ['mobile', 'desktop'],
             interests: [] // Pas d'intérêts pour l'estimation géographique
           };
@@ -329,17 +351,19 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
           // Obtenir l'estimation géographique
           const geoReachResponse = await metaApi.api.call(
             'GET',
-            [`act_${process.env.META_AD_ACCOUNT_ID || '379481728925498'}/delivery_estimate`],
+            [`${getMetaAdAccountId()}/delivery_estimate`],
             {
               targeting_spec: JSON.stringify(geoTargetingSpec),
+              optimization_goal: 'REACH',
               access_token: process.env.META_ACCESS_TOKEN
             }
           );
 
           console.log(`🔍 [ASYNC] ${postalCode}: Réponse estimation géographique:`, geoReachResponse);
         
-        if (geoReachResponse?.data?.users_lower_bound !== undefined) {
-          const audienceEstimate = geoReachResponse.data.users_lower_bound || geoReachResponse.data.users_upper_bound || 0;
+        if (geoReachResponse?.data && Array.isArray(geoReachResponse.data) && geoReachResponse.data.length > 0) {
+          const estimate = geoReachResponse.data[0];
+          const audienceEstimate = estimate.estimate_mau_lower_bound || estimate.estimate_mau_upper_bound || estimate.users_lower_bound || estimate.users_upper_bound || 0;
           
           console.log(`✅ [ASYNC] ${postalCode}: Estimation géographique = ${audienceEstimate}`);
           
@@ -356,22 +380,24 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
             age_max: targeting_spec.age_max || 65,
             genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
             device_platforms: ['mobile', 'desktop'],
-            interests: targeting_spec.interests || []
+            interests: interests  // Utiliser les intérêts extraits des groupes
           };
 
           const targetingReachResponse = await metaApi.api.call(
             'GET',
-            [`act_${process.env.META_AD_ACCOUNT_ID || '379481728925498'}/delivery_estimate`],
+            [`${getMetaAdAccountId()}/delivery_estimate`],
             {
               targeting_spec: JSON.stringify(targetingTargetingSpec),
+              optimization_goal: 'REACH',
               access_token: process.env.META_ACCESS_TOKEN
             }
           );
 
           let targetingEstimate = 0; // Valeur par défaut différente pour distinguer les cas
 
-          if (targetingReachResponse?.data?.users_lower_bound !== undefined) {
-            targetingEstimate = targetingReachResponse.data.users_lower_bound || targetingReachResponse.data.users_upper_bound || 0;
+          if (targetingReachResponse?.data && Array.isArray(targetingReachResponse.data) && targetingReachResponse.data.length > 0) {
+            const targetingEstimateData = targetingReachResponse.data[0];
+            targetingEstimate = targetingEstimateData.estimate_mau_lower_bound || targetingEstimateData.estimate_mau_upper_bound || targetingEstimateData.users_lower_bound || targetingEstimateData.users_upper_bound || 0;
             console.log(`✅ [ASYNC] ${postalCode}: Estimation avec targeting = ${targetingEstimate}`);
           } else {
             console.warn(`⚠️ [ASYNC] ${postalCode}: Impossible d'obtenir l'estimation avec targeting, utilisation de 50% de l'estimation géographique`);
@@ -381,8 +407,8 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
 
           console.log(`✅ [ASYNC] ${postalCode}: audience=${audienceEstimate}, targeting=${targetingEstimate}`);
 
-          // Mettre à jour le résultat existant dans la base au lieu d'en créer un nouveau
-          console.log(`💾 [ASYNC] ${postalCode}: Sauvegarde des estimations...`);
+          // Mettre à jour le résultat existant (qui a été créé lors de l'upload)
+          console.log(`💾 [ASYNC] ${postalCode}: Mise à jour des estimations...`);
           const updateResult = await projectService.updateProcessingResult(projectId, postalCode, {
             success: true,
             postalCodeOnlyEstimate: { audience_size: audienceEstimate },
@@ -390,9 +416,9 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
           });
           
           if (updateResult.success) {
-            console.log(`✅ [ASYNC] ${postalCode}: Estimations sauvegardées avec succès`);
+            console.log(`✅ [ASYNC] ${postalCode}: Estimations mises à jour avec succès`);
           } else {
-            console.error(`❌ [ASYNC] ${postalCode}: Erreur sauvegarde:`, updateResult.error);
+            console.error(`❌ [ASYNC] ${postalCode}: Erreur mise à jour:`, updateResult.error);
           }
 
           updatedResults.push({
@@ -440,8 +466,8 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
           });
         }
 
-        // Délai entre les appels pour respecter les rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Délai réduit entre les appels (Meta API peut gérer plus)
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
         console.error(`❌ [ASYNC] Erreur calcul estimation ${postalCode}:`, error.message);
         
@@ -477,6 +503,200 @@ async function processMetaAPIEstimates(projectId, targeting_spec, baseUrl) {
     await projectService.updateProject(projectId, { status: 'error' });
   }
 }
+
+// NOUVEAU - Traitement DIRECT et SYNCHRONE (sans jobs)
+router.patch('/:projectId/targeting-direct', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { targeting_spec } = req.body;
+    
+    console.log('🚀 [DIRECT] Direct targeting processing for project:', projectId);
+    console.log('🚀 [DIRECT] Received targeting_spec:', JSON.stringify(targeting_spec, null, 2));
+    
+    if (!targeting_spec) {
+      return res.status(400).json({
+        success: false,
+        message: 'Targeting spec is required'
+      });
+    }
+
+    // Transformer les interestGroups en interests simples pour Meta API
+    let interests = [];
+    if (targeting_spec.interestGroups && Array.isArray(targeting_spec.interestGroups)) {
+      interests = targeting_spec.interestGroups
+        .flatMap(group => group.interests || [])
+        .map(interest => interest.id)
+        .filter(Boolean);
+    }
+    
+    console.log('🎯 [DIRECT] Extracted interests:', interests);
+
+    // 1. Mettre à jour le targeting spec
+    const result = await projectService.updateProject(projectId, { 
+      targeting_spec,
+      status: 'processing' 
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    // 2. Récupérer les codes postaux
+    const postalCodesResult = await projectService.getProjectResults(projectId);
+    
+    if (!postalCodesResult.success || !postalCodesResult.results || postalCodesResult.results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No postal codes found for this project'
+      });
+    }
+
+    const codes = postalCodesResult.results.map(r => r.postal_code);
+    console.log(`🔄 [DIRECT] Processing ${codes.length} postal codes directly...`);
+
+    // 3. Traiter TOUS les codes postaux MAINTENANT
+    const metaApi = require('../config/meta-api');
+    const database = require('../config/database');
+    const pool = database.pool;
+    
+    let processed = 0;
+    let errors = 0;
+
+    for (const postalCode of codes) {
+      try {
+        console.log(`🔄 [DIRECT] Processing ${postalCode}...`);
+        
+        // Recherche du code postal
+        const searchResponse = await metaApi.api.call('GET', ['search'], {
+          type: 'adgeolocation',
+          location_types: JSON.stringify(['zip']),  
+          q: postalCode,
+          country_code: 'US',
+          limit: 1,
+          access_token: process.env.META_ACCESS_TOKEN
+        });
+
+        if (!searchResponse.data || searchResponse.data.length === 0) {
+          console.log(`⚠️ [DIRECT] ${postalCode}: Not found in Meta API`);
+          errors++;
+          continue;
+        }
+
+        const zipCodeData = searchResponse.data[0];
+        
+        // Estimation géographique PURE (sans restrictions d'âge/genre spécifiques)
+        const geoTargetingSpec = {
+          geo_locations: {
+            zips: [{
+              key: zipCodeData.key,
+              name: zipCodeData.name,
+              country_code: zipCodeData.country_code
+            }]
+          },
+          age_min: 18,  // Âge minimum Meta (pas de restriction)
+          age_max: 65,  // Âge maximum Meta (pas de restriction)
+          genders: [1, 2],  // Tous les genres (pas de restriction)
+          device_platforms: ['mobile', 'desktop']
+        };
+
+        console.log(`🔍 [DIRECT] ${postalCode}: Geo targeting spec:`, JSON.stringify(geoTargetingSpec, null, 2));
+        
+        const geoEstimate = await metaApi.api.call('GET', [`${getMetaAdAccountId()}/delivery_estimate`], {
+          targeting_spec: JSON.stringify(geoTargetingSpec),
+          optimization_goal: 'REACH',
+          access_token: process.env.META_ACCESS_TOKEN
+        });
+
+        const audienceGeo = geoEstimate.data?.[0]?.estimate_ready ? 
+          (geoEstimate.data[0].estimate_mau_lower_bound || geoEstimate.data[0].users_lower_bound) : 0;
+          
+        console.log(`✅ [DIRECT] ${postalCode}: Geo estimate = ${audienceGeo}`);
+
+        // Estimation avec targeting SPÉCIFIQUE (âge, genre, intérêts du user)
+        const targetingTargetingSpec = {
+          geo_locations: {
+            zips: [{
+              key: zipCodeData.key,
+              name: zipCodeData.name,
+              country_code: zipCodeData.country_code
+            }]
+          },
+          age_min: targeting_spec.age_min || 18,
+          age_max: targeting_spec.age_max || 65,
+          genders: targeting_spec.genders ? targeting_spec.genders.map(g => parseInt(g)) : [1, 2],
+          device_platforms: ['mobile', 'desktop'],
+          interests: interests  // Utiliser les intérêts extraits des groupes
+        };
+
+        console.log(`🎯 [DIRECT] ${postalCode}: Targeting spec:`, JSON.stringify(targetingTargetingSpec, null, 2));
+        
+        const targetingEstimate = await metaApi.api.call('GET', [`${getMetaAdAccountId()}/delivery_estimate`], {
+          targeting_spec: JSON.stringify(targetingTargetingSpec),
+          optimization_goal: 'REACH',
+          access_token: process.env.META_ACCESS_TOKEN
+        });
+
+        const audienceTargeting = targetingEstimate.data?.[0]?.estimate_ready ? 
+          (targetingEstimate.data[0].estimate_mau_lower_bound || targetingEstimate.data[0].users_lower_bound) : 0;
+          
+        console.log(`🎯 [DIRECT] ${postalCode}: Targeting estimate = ${audienceTargeting}`);
+
+        // Sauvegarder IMMÉDIATEMENT
+        await pool.query(`
+          UPDATE processing_results 
+          SET 
+            postal_code_only_estimate = $2,
+            postal_code_with_targeting_estimate = $3,
+            success = true,
+            processed_at = NOW()
+          WHERE project_id = $1 AND postal_code = $4
+        `, [projectId, 
+            JSON.stringify({ audience_size: audienceGeo }),
+            JSON.stringify({ audience_size: audienceTargeting }),
+            postalCode]);
+
+        console.log(`✅ [DIRECT] ${postalCode}: Geo=${audienceGeo}, Targeting=${audienceTargeting}`);
+        processed++;
+        
+        // Délai pour respecter les limites Meta API
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+      } catch (error) {
+        console.error(`❌ [DIRECT] Error processing ${postalCode}:`, error.message);
+        errors++;
+      }
+    }
+
+    // 4. Finaliser le projet
+    await projectService.updateProject(projectId, { 
+      status: 'completed',
+      processed_postal_codes: processed,
+      error_postal_codes: errors 
+    });
+
+    console.log(`🎉 [DIRECT] Completed! Processed: ${processed}, Errors: ${errors}`);
+
+    res.json({
+      success: true,
+      message: `Direct processing completed! Processed ${processed} postal codes, ${errors} errors.`,
+      data: {
+        processed,
+        errors,
+        total: codes.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [DIRECT] Critical error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
 // Mettre à jour le targeting spec d'un projet ET lancer les estimations Meta API en arrière-plan
 router.patch('/:projectId/targeting', async (req, res) => {
@@ -517,38 +737,114 @@ router.patch('/:projectId/targeting', async (req, res) => {
     const postalCodesCount = postalCodesResult.results.length;
     console.log(`🚀 Found ${postalCodesCount} postal codes for project ${projectId}`);
 
-    // 3. Répondre immédiatement au frontend
-    res.json({
-      success: true,
-      message: 'Targeting spec updated successfully. Meta API processing started in background.',
-      data: {
-        project: result.project,
-        totalPostalCodes: postalCodesCount,
-        status: 'processing_started'
-      }
-    });
+    // 3. Créer un job async pour le traitement Meta API AVANT de répondre
+    console.log(`🚀 Creating async job for Meta API processing of ${postalCodesCount} postal codes...`);
+    
+    try {
+      // Créer le job directement (sans fetch interne)
+      console.log(`🚀 Creating job directly for project ${projectId}...`);
+      
+      const { Pool } = require('pg');
+      const crypto = require('crypto');
+      const database = require('../config/database');
+      
+      const pool = database.pool;
+      
+      // Générer un job ID unique
+      const jobId = crypto.randomUUID();
+      
+      // Insérer le job dans la base de données
+      const insertResult = await pool.query(`
+        INSERT INTO analysis_jobs (
+          project_id, job_id, status, total_items, 
+          meta_targeting_spec, batch_size, created_at
+        ) VALUES ($1, $2, 'pending', $3, $4, $5, NOW())
+        RETURNING *
+      `, [projectId, jobId, postalCodesCount, JSON.stringify(targeting_spec), 200]);
 
-    // 4. Traitement Meta API - synchrone pour <5 codes postaux, asynchrone pour plus
-    if (postalCodesCount <= 4) {
-      console.log(`🚀 Processing ${postalCodesCount} postal codes synchronously...`);
-      try {
-        // Traitement synchrone pour les petites listes
-        const baseUrl = req.protocol + '://' + req.get('host');
-        await processMetaAPIEstimates(projectId, targeting_spec, baseUrl);
-        console.log(`✅ Synchronous processing completed for project ${projectId}`);
-      } catch (error) {
-        console.error(`❌ Synchronous processing failed for project ${projectId}:`, error);
-      }
-    } else {
-      console.log(`🚀 Processing ${postalCodesCount} postal codes asynchronously...`);
-      // Traitement asynchrone pour les grandes listes
-      const baseUrl = req.protocol + '://' + req.get('host');
-      setImmediate(() => {
-        processMetaAPIEstimates(projectId, targeting_spec, baseUrl)
-          .catch(error => {
-            console.error(`❌ Background processing failed for project ${projectId}:`, error);
-          });
+      const job = insertResult.rows[0];
+      
+      // Mettre à jour le statut du projet
+      await pool.query(
+        'UPDATE projects SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['processing', projectId]
+      );
+
+      console.log(`✅ Job ${jobId} created successfully for project ${projectId} with ${postalCodesCount} items`);
+      
+      // 4. DÉCLENCHER IMMÉDIATEMENT LE WORKER (appel direct sans fetch)
+      console.log(`🚀 Triggering worker immediately for job ${jobId}...`);
+      
+      // Appel direct en arrière-plan (plus robuste que fetch)
+      setImmediate(async () => {
+        try {
+          console.log(`🔄 Processing job ${jobId} immediately in background...`);
+          
+          // Récupérer le job qu'on vient de créer
+          const jobQuery = await pool.query(
+            'SELECT * FROM analysis_jobs WHERE job_id = $1', 
+            [jobId]
+          );
+          
+          if (jobQuery.rows.length > 0) {
+            const jobToProcess = jobQuery.rows[0];
+            
+            // Importer la fonction processJob directement
+            const jobsModule = require('./jobs');
+            const processJob = jobsModule.processJob;
+            
+            if (processJob && typeof processJob === 'function') {
+              // Traiter le job directement (non-bloquant)
+              try {
+                await processJob(jobToProcess);
+                console.log(`✅ Job ${jobId} processed successfully in background`);
+              } catch (processingError) {
+                console.log(`⚠️ Background job processing failed for ${jobId}: ${processingError.message}`);
+                // Le job restera 'pending' et sera traité par le cron plus tard
+              }
+            } else {
+              console.log(`⚠️ processJob function not available, job ${jobId} will be processed by cron`);
+            }
+          }
+          
+        } catch (error) {
+          console.log(`⚠️ Background worker setup failed: ${error.message}`);
+          // Le job restera 'pending' et sera traité par le cron plus tard
+        }
       });
+      
+      // 5. Répondre immédiatement au frontend avec les informations du job
+      return res.json({
+        success: true,
+        message: 'Targeting spec updated successfully. Meta API processing job created and triggered.',
+        data: {
+          project: result.project,
+          totalPostalCodes: postalCodesCount,
+          status: 'processing_started',
+          job: {
+            jobId: job.job_id,
+            status: job.status,
+            totalItems: job.total_items,
+            batchSize: job.batch_size
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Job creation failed:', error.message);
+      
+      // Fallback: continuer sans job (pour compatibilité)
+      res.json({
+        success: true,
+        message: 'Targeting spec updated successfully. Job creation failed, but targeting is saved.',
+        data: {
+          project: result.project,
+          totalPostalCodes: postalCodesCount,
+          status: 'targeting_saved',
+          error: 'Job creation failed: ' + error.message
+        }
+      });
+      return;
     }
 
   } catch (error) {
@@ -560,11 +856,15 @@ router.patch('/:projectId/targeting', async (req, res) => {
   }
 });
 
-// Get project processing status
+// Get project processing status avec job info
 router.get('/:projectId/status', async (req, res) => {
   try {
     const { projectId } = req.params;
     
+    const database = require('../config/database');
+    const pool = database.pool;
+    
+    // Récupérer le statut du projet
     const result = await projectService.getProjectStatus(projectId);
 
     if (!result.success) {
@@ -574,9 +874,46 @@ router.get('/:projectId/status', async (req, res) => {
       });
     }
 
+    // Récupérer le job le plus récent pour ce projet
+    let currentJob = null;
+    try {
+      const jobQuery = await pool.query(`
+        SELECT * FROM analysis_jobs 
+        WHERE project_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `, [projectId]);
+
+      if (jobQuery.rows.length > 0) {
+        const job = jobQuery.rows[0];
+        currentJob = {
+          jobId: job.job_id,
+          projectId: job.project_id,
+          status: job.status,
+          progress: job.total_items > 0 ? Math.round((job.processed_items / job.total_items) * 100) : 0,
+          totalItems: job.total_items,
+          processedItems: job.processed_items,
+          failedItems: job.failed_items,
+          currentBatch: job.current_batch,
+          retryCount: job.retry_count,
+          lastError: job.last_error,
+          startedAt: job.started_at,
+          completedAt: job.completed_at,
+          createdAt: job.created_at,
+          updatedAt: job.updated_at
+        };
+      }
+    } catch (jobError) {
+      console.log('⚠️ Could not fetch job info:', jobError.message);
+      // Continue without job info
+    }
+
     res.json({
       success: true,
-      data: result.status
+      data: {
+        ...result.status,
+        currentJob
+      }
     });
   } catch (error) {
     console.error('Error getting project status:', error);
@@ -587,78 +924,61 @@ router.get('/:projectId/status', async (req, res) => {
   }
 });
 
-// Debug endpoint pour tester la sauvegarde des estimations
-router.patch('/:projectId/debug-save-estimates', async (req, res) => {
+// SUPPRIMÉ - Endpoint debug avec données mock supprimé
+
+// Debug endpoint pour forcer le processus Meta API sur un projet
+router.post('/debug/force-meta-processing/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
     
-    console.log(`🧪 [DEBUG] Testing save estimates for project ${projectId}`);
+    console.log(`🧪 [FORCE-META] Forçage du traitement Meta pour le projet ${projectId}`);
     
-    // Récupérer les codes postaux du projet
-    const postalCodesResult = await projectService.getProjectResults(projectId);
+    // Récupérer le projet et son targeting_spec
+    const projectResult = await projectService.getProject(projectId);
+    if (!projectResult.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
     
-    if (!postalCodesResult.success || !postalCodesResult.results || postalCodesResult.results.length === 0) {
+    const project = projectResult.project;
+    if (!project.targeting_spec) {
       return res.status(400).json({
         success: false,
-        message: 'No postal codes found for this project'
+        message: 'Project has no targeting spec'
       });
     }
-
-    const results = [];
-    for (const result of postalCodesResult.results) {
-      const postalCode = result.postal_code;
-      
-      // Utiliser des valeurs mock pour tester la sauvegarde
-      const mockAudienceEstimate = Math.floor(Math.random() * 50000) + 10000; // 10k-60k
-      const mockTargetingEstimate = Math.floor(mockAudienceEstimate * 0.7); // 70% de l'audience
-      
-      console.log(`🧪 [DEBUG] ${postalCode}: Mock estimates - audience=${mockAudienceEstimate}, targeting=${mockTargetingEstimate}`);
-      
-      // Tester la sauvegarde
-      const updateResult = await projectService.updateProcessingResult(projectId, postalCode, {
-        success: true,
-        postalCodeOnlyEstimate: { audience_size: mockAudienceEstimate },
-        postalCodeWithTargetingEstimate: { audience_size: mockTargetingEstimate }
+    
+    let targeting_spec;
+    try {
+      targeting_spec = typeof project.targeting_spec === 'string' 
+        ? JSON.parse(project.targeting_spec) 
+        : project.targeting_spec;
+    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid targeting spec JSON'
       });
-      
-      if (updateResult.success) {
-        console.log(`✅ [DEBUG] ${postalCode}: Sauvegarde réussie`);
-        results.push({
-          postal_code: postalCode,
-          success: true,
-          audience_estimate: mockAudienceEstimate,
-          targeting_estimate: mockTargetingEstimate,
-          saved: true
-        });
-      } else {
-        console.error(`❌ [DEBUG] ${postalCode}: Erreur sauvegarde:`, updateResult.error);
-        results.push({
-          postal_code: postalCode,
-          success: false,
-          error: updateResult.error,
-          saved: false
-        });
-      }
     }
-
-    // Mettre à jour le statut du projet
-    await projectService.updateProject(projectId, { 
-      status: 'completed',
-      processed_postal_codes: results.filter(r => r.success).length,
-      error_postal_codes: results.filter(r => !r.success).length
-    });
-
+    
+    console.log(`🧪 [FORCE-META] Targeting spec:`, targeting_spec);
+    
+    // Exécuter le processus Meta API de façon synchrone pour voir les erreurs
+    const baseUrl = req.protocol + '://' + req.get('host');
+    await processMetaAPIEstimates(projectId, targeting_spec, baseUrl);
+    
     res.json({
       success: true,
-      message: 'Debug save completed',
-      results: results
+      message: `Meta API processing completed for project ${projectId}`
     });
-
+    
   } catch (error) {
-    console.error('Error in debug save estimates:', error);
+    console.error('🧪 [FORCE-META] Error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
+      stack: error.stack
     });
   }
 });
@@ -741,16 +1061,17 @@ router.get('/debug/meta-test/:postalCode', async (req, res) => {
 
       const estimateResponse = await metaApi.api.call(
         'GET',
-        [`act_${envCheck.META_AD_ACCOUNT_ID}/delivery_estimate`],
+        [`${getMetaAdAccountId()}/delivery_estimate`],
         {
           targeting_spec: JSON.stringify(targetingSpec),
+          optimization_goal: 'REACH',
           access_token: process.env.META_ACCESS_TOKEN
         }
       );
 
       console.log(`🔍 [META-DEBUG] Estimate response:`, estimateResponse);
 
-      const audienceEstimate = estimateResponse?.data?.users_lower_bound || estimateResponse?.data?.users_upper_bound || 0;
+      const audienceEstimate = estimateResponse?.data?.[0]?.estimate_mau_lower_bound || estimateResponse?.data?.[0]?.estimate_mau_upper_bound || estimateResponse?.data?.[0]?.users_lower_bound || estimateResponse?.data?.[0]?.users_upper_bound || 0;
 
       res.json({
         success: true,
@@ -777,6 +1098,132 @@ router.get('/debug/meta-test/:postalCode', async (req, res) => {
 
   } catch (error) {
     console.error('Error in meta test:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Debug endpoint pour comparer les estimations géo vs targeting
+router.get('/debug/compare-estimates/:postalCode', async (req, res) => {
+  try {
+    const { postalCode } = req.params;
+    
+    console.log(`🧪 [COMPARE] Testing estimates comparison for postal code: ${postalCode}`);
+    
+    if (!process.env.META_ACCESS_TOKEN) {
+      return res.status(400).json({
+        success: false,
+        message: 'META_ACCESS_TOKEN is missing'
+      });
+    }
+
+    const metaApi = require('../config/meta-api');
+    
+    // 1. Recherche du code postal
+    const searchResponse = await metaApi.api.call(
+      'GET',
+      ['search'],
+      {
+        type: 'adgeolocation',
+        location_types: JSON.stringify(['zip']),
+        q: postalCode,
+        country_code: 'US',
+        limit: 1,
+        access_token: process.env.META_ACCESS_TOKEN
+      }
+    );
+
+    if (!searchResponse.data || searchResponse.data.length === 0) {
+      return res.json({
+        success: false,
+        message: `Postal code ${postalCode} not found`
+      });
+    }
+
+    const zipCodeData = searchResponse.data[0];
+    
+    // 2. Estimation géographique PURE (18-65, tous genres, pas d'intérêts)
+    const geoTargetingSpec = {
+      geo_locations: {
+        zips: [{
+          key: zipCodeData.key,
+          name: zipCodeData.name,
+          country_code: zipCodeData.country_code
+        }]
+      },
+      age_min: 18,
+      age_max: 65,
+      genders: [1, 2],
+      device_platforms: ['mobile', 'desktop']
+    };
+
+    const geoEstimate = await metaApi.api.call(
+      'GET',
+      [`${getMetaAdAccountId()}/delivery_estimate`],
+      {
+        targeting_spec: JSON.stringify(geoTargetingSpec),
+        optimization_goal: 'REACH',
+        access_token: process.env.META_ACCESS_TOKEN
+      }
+    );
+
+    const audienceGeo = geoEstimate.data?.[0]?.estimate_mau_lower_bound || geoEstimate.data?.[0]?.users_lower_bound || 0;
+    
+    // 3. Estimation avec targeting SPÉCIFIQUE (25-45, hommes seulement, avec intérêts fictifs)
+    const targetingTargetingSpec = {
+      geo_locations: {
+        zips: [{
+          key: zipCodeData.key,
+          name: zipCodeData.name,
+          country_code: zipCodeData.country_code
+        }]
+      },
+      age_min: 25,
+      age_max: 45,
+      genders: [1], // Hommes seulement
+      device_platforms: ['mobile', 'desktop'],
+      interests: ['6003629266583'] // Sports par exemple
+    };
+
+    const targetingEstimate = await metaApi.api.call(
+      'GET',
+      [`${getMetaAdAccountId()}/delivery_estimate`],
+      {
+        targeting_spec: JSON.stringify(targetingTargetingSpec),
+        optimization_goal: 'REACH',
+        access_token: process.env.META_ACCESS_TOKEN
+      }
+    );
+
+    const audienceTargeting = targetingEstimate.data?.[0]?.estimate_mau_lower_bound || targetingEstimate.data?.[0]?.users_lower_bound || 0;
+
+    res.json({
+      success: true,
+      message: 'Estimates comparison completed',
+      data: {
+        postalCode,
+        zipCodeData,
+        geoEstimate: {
+          spec: geoTargetingSpec,
+          audience: audienceGeo,
+          raw: geoEstimate.data?.[0]
+        },
+        targetingEstimate: {
+          spec: targetingTargetingSpec,
+          audience: audienceTargeting,
+          raw: targetingEstimate.data?.[0]
+        },
+        difference: {
+          absolute: audienceGeo - audienceTargeting,
+          percentage: audienceGeo > 0 ? Math.round(((audienceGeo - audienceTargeting) / audienceGeo) * 100) : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error(`❌ [COMPARE] Error:`, error);
     res.status(500).json({
       success: false,
       message: error.message

@@ -25,7 +25,7 @@ const HomePage: React.FC = () => {
             to="/projects"
             className="btn-secondary text-lg px-8 py-3"
           >
-            Mes Projets
+            My Projects
           </Link>
         </div>
       </div>
@@ -97,6 +97,33 @@ const HomePage: React.FC = () => {
             <div className="text-3xl font-bold text-error-600">24/7</div>
             <div className="text-sm text-gray-600">Monitoring</div>
           </div>
+        </div>
+      </div>
+
+      {/* Debug Section - TEMPORAIRE */}
+      <div className="card bg-yellow-50 border-yellow-200">
+        <h2 className="text-lg font-bold mb-4 text-yellow-800">
+          🧪 Debug - Test Project Links
+        </h2>
+        <div className="space-y-2">
+          <Link
+            to="/results/95"
+            className="block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Project 95 (10001, 99999) - Direct URL
+          </Link>
+          <Link
+            to="/results/97"
+            className="block bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          >
+            Project 97 (75001-75005) - Direct URL
+          </Link>
+          <button
+            onClick={() => localStorage.clear()}
+            className="block bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Clear LocalStorage Cache
+          </button>
         </div>
       </div>
 

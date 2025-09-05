@@ -5,11 +5,13 @@ import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 // Hooks and stores
 import { useProject } from '../hooks/useProject';
+import { useJobPolling } from '../hooks/useJobPolling';
 import { useAppStore } from '../store/appStore';
 
 // Components
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
+import JobProgress from '../components/JobProgress';
 import ResultsHeader from '../components/ResultsComponents/ResultsHeader';
 import ResultsTable from '../components/ResultsComponents/ResultsTable';
 import ExportControls from '../components/ResultsComponents/ExportControls';
@@ -23,7 +25,34 @@ const ResultsPage: React.FC = () => {
   const urlProjectId = params.projectId;
   const stateProjectId = location.state?.projectId;
   const { currentProject, setCurrentProject } = useAppStore();
+  
+  // PRIORITÉ CHANGÉE: URL d'abord, puis state, puis store (pour éviter le cache)
   const projectId = urlProjectId || stateProjectId || currentProject?.id;
+
+  // Get job ID from location state (passed from TargetingPage after job creation)
+  const jobId = location.state?.jobId;
+
+  // Debug logs
+  console.log('🔍 [RESULTS] ResultsPage - Project ID sources:', {
+    urlProjectId,
+    stateProjectId,
+    currentProjectId: currentProject?.id,
+    finalProjectId: projectId,
+    jobId,
+    locationState: location.state,
+    params
+  });
+  
+  console.log('🔍 [RESULTS] Full location object:', location);
+  console.log('🔍 [RESULTS] URL params:', params);
+
+  // Force clear du currentProject si on a un ID différent dans l'URL
+  useEffect(() => {
+    if (urlProjectId && currentProject && currentProject.id.toString() !== urlProjectId) {
+      console.log('🔄 Clearing cached project, URL has different ID');
+      setCurrentProject(null);
+    }
+  }, [urlProjectId, currentProject, setCurrentProject]);
 
   // Use optimized project hook
   const { 
@@ -35,6 +64,25 @@ const ResultsPage: React.FC = () => {
     refetch,
     exportResults 
   } = useProject(projectId);
+
+  // Use job polling hook for real-time updates
+  const { 
+    job, 
+    loading: jobLoading, 
+    error: jobError,
+    startPolling: startJobPolling 
+  } = useJobPolling({
+    jobId,
+    projectId, // Fallback au cas où jobId n'est pas disponible
+    enabled: !!(jobId || projectId),
+    onComplete: () => {
+      console.log('✅ Job completed, refreshing project data');
+      refetch(); // Refresh project data when job completes
+    },
+    onError: (failedJob) => {
+      console.error('❌ Job failed:', failedJob.lastError);
+    }
+  });
 
   // Update store when project changes
   useEffect(() => {
@@ -64,9 +112,65 @@ const ResultsPage: React.FC = () => {
     });
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    console.log('🔄 [REFRESH] Button clicked, starting refresh...');
+    
+    // 1. Rafraîchir les données du projet
     refetch();
-    toast.success('Results refreshed');
+    
+    // 2. Toujours déclencher le worker (pour débug)
+    try {
+      if (project && projectId) {
+        console.log('🔍 [REFRESH] Project data:', {
+          projectId,
+          results: project.results?.length || 0,
+          incompleteResults: project.results?.filter(r => r.audience_estimate === 0 || r.targeting_estimate === 0).length || 0
+        });
+        
+        const hasIncompleteResults = project.results?.some(result => 
+          result.audience_estimate === 0 || result.targeting_estimate === 0
+        );
+        
+        console.log('🔍 [REFRESH] hasIncompleteResults:', hasIncompleteResults);
+        
+        if (hasIncompleteResults) {
+          console.log('🔄 [REFRESH] Triggering worker due to incomplete results...');
+          toast.loading('🚀 Triggering Meta API processing...', { id: 'worker-trigger' });
+          
+          const response = await fetch('/api/jobs/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          console.log('🔍 [REFRESH] Trigger response:', response.status, response.ok);
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('✅ [REFRESH] Trigger successful:', result);
+            toast.success(`✅ Meta API processing triggered! (${result.pendingJobs} jobs)`, { id: 'worker-trigger' });
+            
+            // Relancer le polling
+            if (jobId || projectId) {
+              console.log('🔄 [REFRESH] Restarting polling...');
+              startJobPolling(jobId, projectId);
+            }
+          } else {
+            const errorText = await response.text();
+            console.error('❌ [REFRESH] Trigger failed:', errorText);
+            toast.error('❌ Failed to trigger processing', { id: 'worker-trigger' });
+          }
+        } else {
+          console.log('✅ [REFRESH] No incomplete results, just refreshing');
+          toast.success('✅ Results refreshed - all data complete');
+        }
+      } else {
+        console.log('⚠️ [REFRESH] No project data available');
+        toast.success('📊 Results refreshed');
+      }
+    } catch (error) {
+      console.error('❌ [REFRESH] Error during refresh:', error);
+      toast.error('❌ Error during refresh: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   // Show loading state
@@ -166,6 +270,13 @@ const ResultsPage: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Job Progress Indicator */}
+        {job && (
+          <div className="mb-6">
+            <JobProgress job={job} loading={jobLoading} />
+          </div>
+        )}
 
         {/* Results Header */}
         <ResultsHeader 

@@ -113,9 +113,9 @@ const UploadPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Upload de Fichier</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">File Upload</h1>
         <p className="text-gray-600">
-          Téléchargez votre fichier Excel ou CSV contenant des codes postaux pour commencer l'analyse
+          Upload your Excel or CSV file containing postal codes to start the analysis
         </p>
       </div>
 
@@ -139,15 +139,15 @@ const UploadPage: React.FC = () => {
             
             {isDragActive ? (
               <div>
-                <p className="text-lg font-medium text-primary-600">Déposez le fichier ici...</p>
+                <p className="text-lg font-medium text-primary-600">Drop the file here...</p>
               </div>
             ) : (
               <div>
                 <p className="text-lg font-medium text-gray-900">
-                  Glissez-déposez votre fichier ici, ou cliquez pour sélectionner
+                  Drag and drop your file here, or click to select
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  Formats supportés: .xlsx, .xls, .csv
+                  Supported formats: .xlsx, .xls, .csv
                 </p>
               </div>
             )}
@@ -158,7 +158,7 @@ const UploadPage: React.FC = () => {
       {/* Fichiers sélectionnés */}
       {uploadedFiles.length > 0 && !uploadResult && (
         <div className="mt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Fichier sélectionné:</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-3">Selected file:</h3>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -199,10 +199,10 @@ const UploadPage: React.FC = () => {
             {isUploading ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                <span>Upload en cours...</span>
+                <span>Upload in progress...</span>
               </div>
             ) : (
-              'Uploader le Fichier'
+              'Upload File'
             )}
           </button>
         </div>
@@ -218,9 +218,9 @@ const UploadPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Upload Réussi !</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Upload Successful!</h3>
               <p className="text-gray-600">
-                Votre fichier a été traité avec succès
+                Your file has been processed successfully
               </p>
             </div>
 
@@ -228,15 +228,15 @@ const UploadPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl font-bold text-gray-900">{uploadResult.summary.total}</div>
-                <div className="text-sm text-gray-600">Codes postaux</div>
+                <div className="text-sm text-gray-600">Postal codes</div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">{uploadResult.summary.success}</div>
-                <div className="text-sm text-green-600">Traités</div>
+                <div className="text-sm text-green-600">Processed</div>
               </div>
               <div className="text-center p-4 bg-red-50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600">{uploadResult.summary.error}</div>
-                <div className="text-sm text-red-600">Erreurs</div>
+                <div className="text-sm text-red-600">Errors</div>
               </div>
             </div>
 
@@ -246,14 +246,14 @@ const UploadPage: React.FC = () => {
                 onClick={handleViewResults}
                 className="btn-secondary"
               >
-                Voir les Résultats
+                View Results
               </button>
               
               <button
                 onClick={handleContinueToAnalysis}
                 className="btn-primary"
               >
-                Continuer vers l'Analyse
+                Continue to Analysis
               </button>
             </div>
 
@@ -263,7 +263,7 @@ const UploadPage: React.FC = () => {
                 onClick={handleNewUpload}
                 className="text-gray-500 hover:text-gray-700 text-sm underline"
               >
-                Uploader un autre fichier
+                Upload another file
               </button>
             </div>
           </div>

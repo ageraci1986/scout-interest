@@ -10,9 +10,9 @@ const TEST_CONFIG = {
   API_URL: '/api',
   
   // Données de test
-  TEST_FILE_CONTENT: 'postal_code\n75001\n75002\n75003\n75004\n75005',
+  TEST_FILE_CONTENT: 'postal_code\n10001\n90210\n60601\n33101\n77001',
   TEST_FILE_NAME: 'test-postal-codes.csv',
-  TEST_POSTAL_CODES: ['75001', '75002', '75003', '75004', '75005'],
+  TEST_POSTAL_CODES: ['10001', '90210', '60601', '33101', '77001'],
   
   // Timeout pour les tests
   TIMEOUT: 30000
@@ -400,7 +400,7 @@ class FrontendTestSuite {
 
     try {
       // Test de sauvegarde des codes postaux
-      const testPostalCodes = ['75001', '75002', '75003'];
+      const testPostalCodes = ['10001', '90210', '60601'];
       localStorage.setItem('uploadedPostalCodes', JSON.stringify(testPostalCodes));
 
       const retrieved = JSON.parse(localStorage.getItem('uploadedPostalCodes') || '[]');

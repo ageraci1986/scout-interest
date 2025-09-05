@@ -23,7 +23,7 @@ const AnalysisPage: React.FC = () => {
         setAdAccountId(config.ad_account_id);
       } catch (error) {
         console.error('Error fetching ad account:', error);
-        toast.error('Erreur lors de la récupération de l\'ad account');
+        toast.error('Error retrieving ad account');
       }
     };
 
@@ -34,9 +34,9 @@ const AnalysisPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Analyse d'Audience</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Audience Analysis</h1>
           <p className="mt-2 text-gray-600">
-            Analysez la taille d'audience de vos campagnes publicitaires Meta
+            Analyze the audience size of your Meta advertising campaigns
           </p>
         </div>
 
@@ -44,7 +44,7 @@ const AnalysisPage: React.FC = () => {
           {/* Audience Estimate Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Estimation d'Audience Générale
+              General Audience Estimate
             </h2>
             <AudienceEstimate
               adAccountId={adAccountId}
@@ -56,7 +56,7 @@ const AnalysisPage: React.FC = () => {
           {/* Postal Code Tester Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Test de Codes Postaux Meta
+              Meta Postal Code Test
             </h2>
             <PostalCodeTester
               adAccountId={adAccountId}
@@ -67,7 +67,7 @@ const AnalysisPage: React.FC = () => {
         {/* Additional Features Section */}
         <div className="mt-8 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Fonctionnalités Avancées
+            Advanced Features
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
@@ -77,9 +77,9 @@ const AnalysisPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <h3 className="font-medium text-gray-900">Ciblage Géographique</h3>
+              <h3 className="font-medium text-gray-900">Geographic Targeting</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Testez les codes postaux individuels avec les vraies données Meta
+                Test individual postal codes with real Meta data
               </p>
             </div>
             
@@ -91,7 +91,7 @@ const AnalysisPage: React.FC = () => {
               </div>
               <h3 className="font-medium text-gray-900">Reach Estimate</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Obtenez les vraies estimations d'audience de Meta
+                Get real audience estimates from Meta
               </p>
             </div>
             
@@ -101,9 +101,9 @@ const AnalysisPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
               </div>
-              <h3 className="font-medium text-gray-900">Multi-Pays</h3>
+              <h3 className="font-medium text-gray-900">Multi-Country</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Support de plus de 100 pays pour le ciblage
+                Support for over 100 countries for targeting
               </p>
             </div>
           </div>
