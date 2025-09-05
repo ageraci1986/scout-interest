@@ -9,7 +9,7 @@
       }
     },
     {
-      "src": "backend/src/simple-server.js",
+      "src": "backend/src/fixed-server.js",
       "use": "@vercel/node",
       "config": {
         "maxDuration": 10
@@ -19,7 +19,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/backend/src/simple-server.js"
+      "dest": "/backend/src/fixed-server.js"
     },
     {
       "src": "/static/(.*)",
