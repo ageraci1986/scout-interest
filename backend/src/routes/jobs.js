@@ -45,12 +45,19 @@ function convertTargetingSpec(frontendSpec) {
   };
 }
 
+// DISABLE ALL JOB ROUTES TO STOP RESOURCE CONSUMPTION
 // Use centralized database connection
 const database = require('../config/database');
 const pool = database.pool;
 
-// POST /api/jobs/start - Create a new Meta API processing job
+// POST /api/jobs/start - DISABLED TO STOP RESOURCE CONSUMPTION
 router.post('/start', async (req, res) => {
+  return res.status(503).json({
+    success: false,
+    message: 'Job processing temporarily disabled to conserve resources',
+    disabled: true
+  });
+  
   try {
     const { projectId, targetingSpec } = req.body;
 
@@ -202,8 +209,16 @@ router.get('/pending', async (req, res) => {
   }
 });
 
-// POST /api/jobs/trigger - ROBUST trigger with timeout protection
+// POST /api/jobs/trigger - DISABLED TO STOP RESOURCE CONSUMPTION
 router.post('/trigger', async (req, res) => {
+  return res.status(503).json({
+    success: false,
+    message: 'Job processing temporarily disabled to conserve resources',
+    disabled: true
+  });
+  
+  // POST /api/jobs/trigger - ROBUST trigger with timeout protection
+  /*
   const startTime = Date.now();
   const VERCEL_TIMEOUT = 8000; // 8 seconds safety margin
   
@@ -276,8 +291,16 @@ router.post('/trigger', async (req, res) => {
   }
 });
 
-// POST /api/jobs/worker - Process pending jobs (called by cron or manual trigger)
+// POST /api/jobs/worker - DISABLED TO STOP RESOURCE CONSUMPTION
 router.post('/worker', async (req, res) => {
+  return res.status(503).json({
+    success: false,
+    message: 'Job processing temporarily disabled to conserve resources',
+    disabled: true
+  });
+  
+  // POST /api/jobs/worker - Process pending jobs (called by cron or manual trigger)
+  /*
   try {
     console.log('🔄 [WORKER] Starting job processing...');
 
