@@ -57,7 +57,7 @@ export interface SaveResponse {
 
 class UploadService {
   // Upload file with JSON endpoint
-  async uploadFile(file: File): Promise<UploadResponse> {
+  async uploadFile(file: File, projectName?: string): Promise<UploadResponse> {
     try {
       console.log('📤 Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
       console.log('🌐 API URL:', `${API_BASE_URL}/upload/file/json`);
@@ -71,9 +71,13 @@ class UploadService {
 
       console.log('📤 Extracted postal codes:', postalCodes.length);
 
+      // Generate project name from filename if not provided
+      const finalProjectName = projectName || file.name.replace(/\.(csv|xlsx|xls)$/i, '');
+
       // Envoyer les données au format JSON
       const response = await axios.post(`${API_BASE_URL}/upload/file/json`, {
         filename: file.name,
+        projectName: finalProjectName,
         postalCodes: postalCodes
       }, {
         headers: {

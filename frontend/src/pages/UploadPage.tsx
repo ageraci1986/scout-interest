@@ -7,12 +7,20 @@ import toast from 'react-hot-toast';
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [projectName, setProjectName] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
 
   const onDrop = (acceptedFiles: File[]) => {
     setUploadedFiles(acceptedFiles);
     setUploadResult(null);
+    
+    // Auto-generate project name from filename if not set
+    if (!projectName && acceptedFiles.length > 0) {
+      const filename = acceptedFiles[0].name;
+      const nameWithoutExtension = filename.replace(/\.(csv|xlsx|xls)$/i, '');
+      setProjectName(nameWithoutExtension);
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -36,7 +44,7 @@ const UploadPage: React.FC = () => {
       console.log('📤 Starting file upload...');
       console.log('📁 File:', uploadedFiles[0].name, 'Size:', uploadedFiles[0].size);
       
-      const result = await uploadService.uploadFile(uploadedFiles[0]);
+      const result = await uploadService.uploadFile(uploadedFiles[0], projectName);
       console.log('✅ Upload successful:', result);
       
       setUploadResult(result);
@@ -185,6 +193,26 @@ const UploadPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Project Name Input */}
+      {uploadedFiles.length > 0 && !uploadResult && (
+        <div className="mt-6">
+          <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
+            Project Name
+          </label>
+          <input
+            type="text"
+            id="projectName"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Enter a name for your project"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Leave empty to use the filename as project name
+          </p>
         </div>
       )}
 

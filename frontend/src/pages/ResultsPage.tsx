@@ -1,225 +1,184 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-
-// Hooks and stores
-import { useProject } from '../hooks/useProject';
-import { useJobPolling } from '../hooks/useJobPolling';
-import { useAppStore } from '../store/appStore';
-
-// Components
+import { ArrowLeftIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
-import JobProgress from '../components/JobProgress';
-import ResultsHeader from '../components/ResultsComponents/ResultsHeader';
-import ResultsTable from '../components/ResultsComponents/ResultsTable';
-import ExportControls from '../components/ResultsComponents/ExportControls';
+
+interface PostalCodeResult {
+  postal_code: string;
+  geo_audience: number | null;
+  targeting_audience: number | null;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+}
+
+interface Project {
+  id: number;
+  name: string;
+  postal_codes: string[];
+  results: PostalCodeResult[];
+  status: string;
+  created_at: string;
+  targeting_spec?: any;
+}
 
 const ResultsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
   
-  // Get project ID from URL params, location state, or store
-  const urlProjectId = params.projectId;
-  const stateProjectId = location.state?.projectId;
-  const { currentProject, setCurrentProject } = useAppStore();
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // PRIORITÉ CHANGÉE: URL d'abord, puis state, puis store (pour éviter le cache)
-  const projectId = urlProjectId || stateProjectId || currentProject?.id;
+  const projectId = params.projectId || location.state?.projectId;
 
-  // Get job ID from location state (passed from TargetingPage after job creation)
-  let jobId = location.state?.jobId;
-  
-  // FALLBACK: Récupérer depuis sessionStorage si pas dans location.state
-  if (!jobId) {
-    try {
-      const redirectData = sessionStorage.getItem('redirectData');
-      if (redirectData) {
-        const parsedData = JSON.parse(redirectData);
-        jobId = parsedData.jobId;
-        console.log('🔄 [RESULTS] Retrieved data from sessionStorage:', parsedData);
-        // Nettoyer après usage
-        sessionStorage.removeItem('redirectData');
-      }
-    } catch (error) {
-      console.log('⚠️ [RESULTS] Could not parse sessionStorage redirectData');
-    }
-  }
-
-  // Debug logs
-  console.log('🔍 [RESULTS] ResultsPage - Project ID sources:', {
-    urlProjectId,
-    stateProjectId,
-    currentProjectId: currentProject?.id,
-    finalProjectId: projectId,
-    jobId,
-    locationState: location.state,
-    params
-  });
-  
-  console.log('🔍 [RESULTS] Full location object:', location);
-  console.log('🔍 [RESULTS] URL params:', params);
-
-  // Force clear du currentProject si on a un ID différent dans l'URL
   useEffect(() => {
-    if (urlProjectId && currentProject && currentProject.id.toString() !== urlProjectId) {
-      console.log('🔄 Clearing cached project, URL has different ID');
-      setCurrentProject(null);
-    }
-  }, [urlProjectId, currentProject, setCurrentProject]);
-
-  // Use optimized project hook
-  const { 
-    project, 
-    loading, 
-    error, 
-    isProcessing, 
-    progress, 
-    refetch,
-    exportResults 
-  } = useProject(projectId);
-
-  // Use job polling hook for real-time updates
-  const { 
-    job, 
-    loading: jobLoading, 
-    error: jobError,
-    startPolling: startJobPolling 
-  } = useJobPolling({
-    jobId,
-    projectId, // Fallback au cas où jobId n'est pas disponible
-    enabled: false, // EMERGENCY: FORCE DISABLE TO STOP RESOURCE CONSUMPTION
-    onComplete: () => {
-      console.log('✅ Job completed, refreshing project data');
-      refetch(); // Refresh project data when job completes
-    },
-    onError: (failedJob) => {
-      console.error('❌ Job failed:', failedJob.lastError);
-    }
-  });
-
-  // Update store when project changes
-  useEffect(() => {
-    if (project && project !== currentProject) {
-      setCurrentProject(project);
-    }
-  }, [project, currentProject, setCurrentProject]);
-
-  // Redirect if no project ID
-  useEffect(() => {
-    if (!projectId && !loading) {
+    if (!projectId) {
       toast.error('No project selected');
       navigate('/');
+      return;
     }
-  }, [projectId, loading, navigate]);
 
-  const handleBackToProjects = () => {
-    navigate('/projects');
-  };
+    fetchProject();
+  }, [projectId]);
 
-  const handleBackToTargeting = () => {
-    navigate('/targeting', { 
-      state: { 
-        projectId,
-        editMode: true 
-      } 
-    });
-  };
-
-  const handleRefresh = async () => {
-    console.log('🔄 [REFRESH] Button clicked, starting refresh...');
-    
-    // 1. Rafraîchir les données du projet
-    refetch();
-    
-    // 2. Toujours déclencher le worker (pour débug)
+  const fetchProject = async () => {
     try {
-      if (project && projectId) {
-        console.log('🔍 [REFRESH] Project data:', {
-          projectId,
-          results: project.results?.length || 0,
-          incompleteResults: project.results?.filter(r => r.audience_estimate === 0 || r.targeting_estimate === 0).length || 0
-        });
-        
-        const hasIncompleteResults = project.results?.some(result => 
-          result.audience_estimate === 0 || result.targeting_estimate === 0
-        );
-        
-        console.log('🔍 [REFRESH] hasIncompleteResults:', hasIncompleteResults);
-        
-        if (hasIncompleteResults) {
-          console.log('🔄 [REFRESH] Triggering worker due to incomplete results...');
-          toast.loading('🚀 Triggering Meta API processing...', { id: 'worker-trigger' });
-          
-          const response = await fetch('/api/jobs/trigger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          
-          console.log('🔍 [REFRESH] Trigger response:', response.status, response.ok);
-          
-          if (response.ok) {
-            const result = await response.json();
-            console.log('✅ [REFRESH] Trigger successful:', result);
-            toast.success(`✅ Meta API processing triggered! (${result.pendingJobs} jobs)`, { id: 'worker-trigger' });
-            
-            // Relancer le polling
-            if (jobId || projectId) {
-              console.log('🔄 [REFRESH] Restarting polling...');
-              startJobPolling(jobId, projectId);
-            }
-          } else {
-            const errorText = await response.text();
-            console.error('❌ [REFRESH] Trigger failed:', errorText);
-            toast.error('❌ Failed to trigger processing', { id: 'worker-trigger' });
-          }
-        } else {
-          console.log('✅ [REFRESH] No incomplete results, just refreshing');
-          toast.success('✅ Results refreshed - all data complete');
-        }
-      } else {
-        console.log('⚠️ [REFRESH] No project data available');
-        toast.success('📊 Results refreshed');
+      setLoading(true);
+      const response = await fetch(`/api/projects/${projectId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch project: ${response.statusText}`);
       }
-    } catch (error) {
-      console.error('❌ [REFRESH] Error during refresh:', error);
-      toast.error('❌ Error during refresh: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      
+      const data = await response.json();
+      setProject(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project');
+      console.error('Error fetching project:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Show loading state
+  const exportToCSV = () => {
+    if (!project || !project.results || project.results.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
+    const headers = ['Postal Code', 'Geo Audience', 'Targeting Audience', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...project.results.map(result => [
+        result.postal_code,
+        result.geo_audience || '',
+        result.targeting_audience || '',
+        result.status
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${project.name}_results.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('CSV exported successfully!');
+  };
+
+  const exportToXLSX = () => {
+    if (!project || !project.results || project.results.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
+    // Simple XLSX export using basic XML structure
+    const headers = ['Postal Code', 'Geo Audience', 'Targeting Audience', 'Status'];
+    const rows = project.results.map(result => [
+      result.postal_code,
+      result.geo_audience || '',
+      result.targeting_audience || '',
+      result.status
+    ]);
+
+    // Create a simple table for Excel
+    const xmlContent = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Results">
+<Table>
+<Row>${headers.map(h => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
+${rows.map(row => `<Row>${row.map(cell => `<Cell><Data ss:Type="String">${cell}</Data></Cell>`).join('')}</Row>`).join('')}
+</Table>
+</Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${project.name}_results.xlsx`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('XLSX exported successfully!');
+  };
+
+  const handleStartAnalysis = async () => {
+    if (!project) return;
+    
+    try {
+      toast.loading('Starting Meta API analysis...', { id: 'analysis' });
+      
+      const response = await fetch('/api/meta/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projectId: project.id,
+          postalCodes: project.postal_codes,
+          targeting: location.state?.targeting || project.targeting_spec || {}
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to start analysis');
+      }
+      
+      toast.success('Analysis started!', { id: 'analysis' });
+      
+      // Refresh data every 3 seconds while processing
+      const interval = setInterval(fetchProject, 3000);
+      
+      // Clear interval after 2 minutes to avoid infinite polling
+      setTimeout(() => clearInterval(interval), 120000);
+      
+    } catch (err) {
+      toast.error('Failed to start analysis', { id: 'analysis' });
+      console.error('Error starting analysis:', err);
+    }
+  };
+
   if (loading && !project) {
-    return (
-      <LoadingSpinner 
-        size="lg" 
-        message="Loading project results..." 
-        fullScreen 
-      />
-    );
+    return <LoadingSpinner size="lg" message="Loading results..." fullScreen />;
   }
 
-  // Show error state
   if (error && !project) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-600 mb-4">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Project</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <div className="space-x-3">
-            <Button onClick={handleRefresh} variant="primary">
-              Try Again
-            </Button>
-            <Button onClick={handleBackToProjects} variant="secondary">
-              Back to Projects
-            </Button>
-          </div>
+          <Button onClick={() => navigate('/')} variant="primary">
+            Back to Home
+          </Button>
         </div>
       </div>
     );
@@ -230,9 +189,8 @@ const ResultsPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Project Not Found</h2>
-          <p className="text-gray-600 mb-4">The requested project could not be found.</p>
-          <Button onClick={handleBackToProjects} variant="primary">
-            Back to Projects
+          <Button onClick={() => navigate('/')} variant="primary">
+            Back to Home
           </Button>
         </div>
       </div>
@@ -240,166 +198,150 @@ const ResultsPage: React.FC = () => {
   }
 
   const hasResults = project.results && project.results.length > 0;
+  const pendingResults = project.results?.filter(r => r.status === 'pending' || r.status === 'processing').length || 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
+        
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <Button
-              onClick={handleBackToProjects}
+              onClick={() => navigate('/')}
               variant="ghost"
               size="sm"
               className="flex items-center space-x-2"
             >
               <ArrowLeftIcon className="w-4 h-4" />
-              <span>Back to Projects</span>
+              <span>Back to Home</span>
             </Button>
+            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
           </div>
-
+          
           <div className="flex items-center space-x-3">
-            {isProcessing && (
-              <div className="flex items-center space-x-2 text-sm text-yellow-600">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                <span>Processing...</span>
+            <Button onClick={fetchProject} variant="secondary" size="sm">
+              Refresh
+            </Button>
+            
+            {hasResults && (
+              <div className="flex items-center space-x-2">
+                <Button onClick={exportToCSV} variant="secondary" size="sm">
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
+                  CSV
+                </Button>
+                <Button onClick={exportToXLSX} variant="secondary" size="sm">
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
+                  XLSX
+                </Button>
               </div>
             )}
             
-            <Button
-              onClick={handleRefresh}
-              variant="secondary"
-              size="sm"
-              loading={loading}
-            >
-              Refresh
-            </Button>
-
-            {!isProcessing && (
-              <Button
-                onClick={handleBackToTargeting}
-                variant="primary"
-                size="sm"
-              >
-                Edit Targeting
+            {(!hasResults || pendingResults > 0) && (
+              <Button onClick={handleStartAnalysis} variant="primary" size="sm">
+                {hasResults ? 'Continue Analysis' : 'Start Analysis'}
               </Button>
             )}
           </div>
         </div>
 
-        {/* Job Progress Indicator */}
-        {job && (
-          <div className="mb-6">
-            <JobProgress job={job} loading={jobLoading} />
+        {/* Status */}
+        {pendingResults > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mr-3"></div>
+              <span className="text-yellow-800">
+                Processing {pendingResults} postal codes...
+              </span>
+            </div>
           </div>
         )}
 
-        {/* Results Header */}
-        <ResultsHeader 
-          project={project} 
-          progress={progress} 
-          isProcessing={isProcessing} 
-        />
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Results Table - Takes up 2/3 of the width on large screens */}
-          <div className="lg:col-span-2">
-            <ResultsTable 
-              results={project.results || []} 
-              loading={loading} 
-            />
+        {/* Results Table */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900">
+              Postal Codes Analysis ({project.postal_codes?.length || 0} codes)
+            </h2>
           </div>
-
-          {/* Side Panel */}
-          <div className="space-y-6">
-            {/* Export Controls */}
-            <ExportControls
-              onExport={exportResults}
-              hasResults={hasResults || false}
-              loading={loading}
-            />
-
-            {/* Project Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Project Information</h3>
-              <dl className="space-y-3">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Status</dt>
-                  <dd className="text-sm text-gray-900 capitalize">{project.status}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Total Postal Codes</dt>
-                  <dd className="text-sm text-gray-900">{project.total_postal_codes.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Processed</dt>
-                  <dd className="text-sm text-gray-900">{project.processed_postal_codes.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Errors</dt>
-                  <dd className="text-sm text-gray-900">{project.error_postal_codes.toLocaleString()}</dd>
-                </div>
-                {project.processed_at && (
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Last Updated</dt>
-                    <dd className="text-sm text-gray-900">
-                      {new Date(project.processed_at).toLocaleString()}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <Button
-                  onClick={() => navigate('/upload')}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full justify-center"
-                >
-                  Upload New File
-                </Button>
-                <Button
-                  onClick={() => navigate('/targeting')}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full justify-center"
-                >
-                  Create New Analysis
-                </Button>
-                {hasResults && (
-                  <Button
-                    onClick={() => exportResults('csv')}
-                    variant="primary"
-                    size="sm"
-                    className="w-full justify-center"
-                  >
-                    Quick Export CSV
-                  </Button>
-                )}
-              </div>
-            </div>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Postal Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Geo Audience
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Targeting Audience
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {project.postal_codes?.map((postalCode, index) => {
+                  const result = project.results?.find(r => r.postal_code === postalCode);
+                  
+                  return (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {postalCode}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {result?.geo_audience !== null && result?.geo_audience !== undefined 
+                          ? result.geo_audience.toLocaleString() 
+                          : '-'
+                        }
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {result?.targeting_audience !== null && result?.targeting_audience !== undefined 
+                          ? result.targeting_audience.toLocaleString() 
+                          : '-'
+                        }
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {result ? (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            result.status === 'completed' 
+                              ? 'bg-green-100 text-green-800'
+                              : result.status === 'processing'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : result.status === 'error'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {result.status}
+                          </span>
+                        ) : (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                            pending
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Processing Status Banner */}
-        {isProcessing && (
-          <div className="fixed bottom-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
-                <LoadingSpinner size="sm" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">Processing postal codes...</p>
-                <p className="text-sm text-gray-500">
-                  {progress}% complete ({project.processed_postal_codes}/{project.total_postal_codes})
-                </p>
-              </div>
-            </div>
+        {/* Empty State */}
+        {!project.postal_codes || project.postal_codes.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No postal codes found in this project.</p>
+            <Button 
+              onClick={() => navigate('/upload')} 
+              variant="primary" 
+              className="mt-4"
+            >
+              Upload File
+            </Button>
           </div>
         )}
       </div>

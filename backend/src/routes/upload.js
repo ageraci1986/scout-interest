@@ -88,7 +88,7 @@ router.post('/file', upload, async (req, res) => {
 // JSON upload endpoint for frontend compatibility
 router.post('/file/json', async (req, res) => {
   try {
-    const { filename, postalCodes } = req.body;
+    const { filename, projectName, postalCodes } = req.body;
     
     console.log('📤 JSON Upload received:', { filename, postalCodesCount: postalCodes?.length || 0 });
     
@@ -109,9 +109,10 @@ router.post('/file/json', async (req, res) => {
     
     // Créer un vrai projet dans Supabase
     const projectService = require('../services/projectService');
+    const finalProjectName = projectName || `Project from ${filename}`;
     const projectResult = await projectService.createProject({
-      name: `Project from ${filename}`,
-      description: `Auto-generated project from file upload with ${postalCodes.length} postal codes`,
+      name: finalProjectName,
+      description: `Project from file upload with ${postalCodes.length} postal codes`,
       userId: 'anonymous'
     });
     
